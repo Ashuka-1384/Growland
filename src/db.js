@@ -43,3 +43,15 @@ export async function bumpToday(userId) {
   if (data) await sb.from('activity').update({ count: data.count + 1 }).eq('id', data.id);
   else await sb.from('activity').insert({ user_id: userId, day, count: 1 });
 }
+
+export const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return dstr(d); };
+// تعداد روزهای متوالی فعالیت
+export function streakOf(acts) {
+  const set = new Set(acts.filter((a) => a.count > 0).map((a) => a.day));
+  const d = new Date();
+  if (!set.has(dstr(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (set.has(dstr(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+export const nf = (n) => Number(n || 0).toLocaleString('fa-IR');

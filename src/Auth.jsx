@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { sb, fa2en } from './db.js';
+import { Icon } from './ui.jsx';
 
-export default function Auth({ onLogin }) {
-  const [mode, setMode] = useState('login');
+export default function Auth({ initial = 'login', onLogin, onBack }) {
+  const [mode, setMode] = useState(initial);
   const [fields, setFields] = useState([]);
   const [f, setF] = useState({ name: '', age: '', city: '', phone: '', password: '', field: '' });
   const [err, setErr] = useState('');
@@ -41,29 +42,34 @@ export default function Auth({ onLogin }) {
 
   return (
     <div className="auth">
-      <form className="clay authbox" onSubmit={submit}>
-        <img src="/logo.jpg" alt="GrowLand" className="logo" />
-        <div className="tabs2">
-          <button type="button" className={'btn ' + (mode === 'login' ? '' : 'ghost')} onClick={() => setMode('login')}>ورود</button>
-          <button type="button" className={'btn ' + (mode === 'register' ? '' : 'ghost')} onClick={() => setMode('register')}>ثبت‌نام</button>
+      <div className="blob b1" /><div className="blob b3" />
+      <div className="authwrap">
+        <div className="authside">
+          <img src="/logo.jpg" alt="GrowLand" className="logo" />
+          <h2>{mode === 'login' ? 'خوش برگشتی!' : 'به گرولند خوش اومدی'}</h2>
+          <p>{mode === 'login' ? 'وارد شو و مسیر رشدت رو ادامه بده.' : 'حساب بساز، گزارش بده و لول بزن.'}</p>
         </div>
-        {mode === 'register' && (
-          <>
-            <input placeholder="اسم" value={f.name} onChange={set('name')} />
-            <input placeholder="سن" inputMode="numeric" value={f.age} onChange={set('age')} />
-            <input placeholder="شهر" value={f.city} onChange={set('city')} />
-          </>
-        )}
-        <input placeholder="شماره موبایل" inputMode="tel" value={f.phone} onChange={set('phone')} />
-        <input placeholder="رمز عبور" type="password" value={f.password} onChange={set('password')} />
-        {mode === 'register' && (
-          <select value={f.field} onChange={set('field')}>
-            {fields.map((x) => <option key={x.id}>{x.name}</option>)}
-          </select>
-        )}
-        {err && <div className="err">{err}</div>}
-        <button className="btn" disabled={busy}>{busy ? '...' : mode === 'login' ? 'ورود' : 'ساخت حساب'}</button>
-      </form>
+        <form className="clay authbox" onSubmit={submit}>
+          <button type="button" className="btn small ghost backbtn" onClick={onBack}><Icon n="back" size={16} /> بازگشت</button>
+          <div className="seg">
+            <button type="button" className={mode === 'login' ? 'on' : ''} onClick={() => setMode('login')}>ورود</button>
+            <button type="button" className={mode === 'register' ? 'on' : ''} onClick={() => setMode('register')}>ثبت‌نام</button>
+          </div>
+          {mode === 'register' && (
+            <>
+              <input placeholder="اسم" value={f.name} onChange={set('name')} />
+              <div className="row"><input placeholder="سن" inputMode="numeric" value={f.age} onChange={set('age')} /><input placeholder="شهر" value={f.city} onChange={set('city')} /></div>
+            </>
+          )}
+          <input placeholder="شماره موبایل" inputMode="tel" value={f.phone} onChange={set('phone')} />
+          <input placeholder="رمز عبور" type="password" value={f.password} onChange={set('password')} />
+          {mode === 'register' && (
+            <select value={f.field} onChange={set('field')}>{fields.map((x) => <option key={x.id}>{x.name}</option>)}</select>
+          )}
+          {err && <div className="err">{err}</div>}
+          <button className="btn" disabled={busy}>{busy ? '...' : mode === 'login' ? 'ورود' : 'ساخت حساب'}</button>
+        </form>
+      </div>
     </div>
   );
 }
