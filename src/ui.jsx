@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { sb, level, last7, fmt, roleName, daysAgo, streakOf, nf } from './db.js';
+import { sb, level, xpInto, last7, fmt, roleName, daysAgo, streakOf, nf } from './db.js';
 
 /* ---------- آیکون ---------- */
 const P = {
@@ -20,7 +20,7 @@ const P = {
   trash: 'M3 6h18 M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6 M10 11v6 M14 11v6 M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2',
   flame: 'M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 2-2 3-3 3 0-3-1-6-4-8 0 4-4 6-4 12 0 4 3 7 7 7z',
   send: 'M22 2L11 13 M22 2l-7 20-4-9-9-4z',
-  back: 'M19 12H5 M12 19l-7-7 7-7',
+  back: 'M5 12h14 M12 5l7 7-7 7',
   leaf: 'M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z M2 21c0-3 1.85-5.36 5.08-6',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35',
   grid: 'M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z',
@@ -51,7 +51,18 @@ export function ToastHost() {
 }
 
 /* ---------- المان‌های پایه ---------- */
+export function Bg() {
+  return <div className="bgfx"><i className="blob b1" /><i className="blob b2" /><i className="blob b3" /></div>;
+}
+
 export function Modal({ onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, []);
   return (
     <div className="overlay" onClick={onClose}>
       <div className="clay modal" onClick={(e) => e.stopPropagation()}>
@@ -92,17 +103,22 @@ export function Radar({ skills }) {
   const n = skills.length;
   if (n < 3) return <Empty icon="target" text="برای نمودار راداری حداقل ۳ مهارت لازم است." />;
   const max = Math.max(...skills.map((s) => s.xp), 1);
-  const C = 160, R = 100;
-  const pt = (i, r) => { const a = (-90 + (i * 360) / n) * (Math.PI / 180); return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+  const C = 180, R = 100, CY = 160;
+  const pt = (i, r) => { const a = (-90 + (i * 360) / n) * (Math.PI / 180); return [C + r * Math.cos(a), CY + r * Math.sin(a)]; };
   const ring = (f) => skills.map((_, i) => pt(i, R * f).join(',')).join(' ');
   const poly = skills.map((s, i) => pt(i, R * (s.xp / max)).join(',')).join(' ');
   return (
-    <svg viewBox="0 0 320 320" className="chart">
+    <svg viewBox="0 0 360 320" className="chart" style={{ direction: 'ltr' }}>
       {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ring(f)} fill="none" stroke="#c9dcbc" />)}
-      {skills.map((_, i) => <line key={i} x1={C} y1={C} x2={pt(i, R)[0]} y2={pt(i, R)[1]} stroke="#c9dcbc" />)}
+      {skills.map((_, i) => <line key={i} x1={C} y1={CY} x2={pt(i, R)[0]} y2={pt(i, R)[1]} stroke="#c9dcbc" />)}
       <polygon points={poly} fill="rgba(108,192,74,.45)" stroke="#3f8f26" strokeWidth="2.5" strokeLinejoin="round" />
       {skills.map((s, i) => { const [x, y] = pt(i, R * (s.xp / max)); return <circle key={'d' + s.id} cx={x} cy={y} r="4" fill="#3f8f26" />; })}
-      {skills.map((s, i) => { const [x, y] = pt(i, R + 24); return <text key={s.id} x={x} y={y} textAnchor="middle" fontSize="11" fill="#355a22">{s.name}</text>; })}
+      {skills.map((s, i) => {
+        const [x, y] = pt(i, R + 14);
+        const anchor = x > C + 12 ? 'start' : x < C - 12 ? 'end' : 'middle';
+        const label = s.name.length > 14 ? s.name.slice(0, 13) + '…' : s.name;
+        return <text key={s.id} x={x} y={y + 4} textAnchor={anchor} fontSize="11" fill="#355a22">{label}</text>;
+      })}
     </svg>
   );
 }
@@ -111,7 +127,7 @@ export function Bars({ acts }) {
   const vals = days.map((d) => acts.find((a) => a.day === d.day)?.count || 0);
   const max = Math.max(...vals, 1);
   return (
-    <svg viewBox="0 0 320 190" className="chart">
+    <svg viewBox="0 0 320 190" className="chart" style={{ direction: 'ltr' }}>
       <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#a6e872" /><stop offset="1" stopColor="#3f8f26" /></linearGradient></defs>
       {[0, 1, 2, 3].map((i) => <line key={i} x1="8" x2="312" y1={140 - i * 40} y2={140 - i * 40} stroke="#d6e6c8" strokeDasharray="4 5" />)}
       {days.map((d, i) => {
@@ -119,7 +135,7 @@ export function Bars({ acts }) {
         return (
           <g key={d.day}>
             <rect x={14 + i * 43} y={140 - h} width="30" height={Math.max(h, 4)} rx="10" fill="url(#g)" />
-            <text x={29 + i * 43} y={133 - h} textAnchor="middle" fontSize="11" fontWeight="700" fill="#355a22">{vals[i]}</text>
+            <text x={29 + i * 43} y={133 - h} textAnchor="middle" fontSize="11" fontWeight="700" fill="#355a22">{nf(vals[i])}</text>
             <text x={29 + i * 43} y="160" textAnchor="middle" fontSize="9" fill="#5b7a4a">{d.label}</text>
           </g>
         );
@@ -137,12 +153,12 @@ export function Growth({ user }) {
     (async () => {
       const [s, a] = await Promise.all([
         sb.from('skills').select('*').eq('user_id', user.id).order('id'),
-        sb.from('activity').select('*').eq('user_id', user.id).gte('day', daysAgo(40)),
+        sb.from('activity').select('*').eq('user_id', user.id).gte('day', daysAgo(100)),
       ]);
       setSkills(s.data || []); setActs(a.data || []); setLoading(false);
     })();
   }, [user.id, user.xp]);
-  const lv = level(user.xp), into = (user.xp || 0) % 1000;
+  const lv = level(user.xp), into = xpInto(user.xp);
   const week = last7().reduce((t, d) => t + (acts.find((a) => a.day === d.day)?.count || 0), 0);
   const maxSk = Math.max(...skills.map((s) => s.xp), 1);
   if (loading) return <div className="skeleton" />;
@@ -160,7 +176,7 @@ export function Growth({ user }) {
         {skills.map((s) => (
           <div key={s.id} className="skill">
             <div className="row between"><b>{s.name}</b><small className="muted">{nf(s.xp)} XP</small></div>
-            <div className="bar"><div style={{ width: (s.xp / maxSk) * 100 + '%' }} /></div>
+            <div className="bar"><div style={{ width: Math.max(0, (s.xp / maxSk) * 100) + '%' }} /></div>
           </div>
         ))}
       </div>
@@ -185,6 +201,7 @@ export function Thread({ report, me, onSent }) {
     if (!text.trim()) return;
     await sb.from('report_messages').insert({ report_id: report.id, sender_id: me.id, content: text.trim() });
     if (me.id !== report.user_id) await sb.from('reports').update({ status: 'reviewed' }).eq('id', report.id);
+    else if (report.status === 'reviewed') await sb.from('reports').update({ status: 'pending' }).eq('id', report.id);
     setText(''); load(); onSent && onSent();
   };
   return (

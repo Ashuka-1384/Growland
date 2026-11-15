@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { sb, level, nf } from './db.js';
-import { Icon, Reveal, Avatar, Ring } from './ui.jsx';
+import { Icon, Reveal, Avatar, Ring, Bg } from './ui.jsx';
 
 const FEATURES = [
   ['chart', 'پنل رشد شخصی', 'لول، XP، مهارت‌ها و فعالیت هفتگی‌ات را در یک نگاه ببین.'],
@@ -44,7 +44,7 @@ export default function Landing({ onAuth }) {
 
   return (
     <div className="landing">
-      <div className="blob b1" /><div className="blob b2" /><div className="blob b3" />
+      <Bg />
       <header className="lnav clay">
         <img src="/logo.jpg" alt="GrowLand" className="mini-logo" />
         <nav className="llinks">

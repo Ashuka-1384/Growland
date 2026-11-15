@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { sb, fa2en } from './db.js';
-import { Icon } from './ui.jsx';
+import { Icon, Bg } from './ui.jsx';
 
 export default function Auth({ initial = 'login', onLogin, onBack }) {
   const [mode, setMode] = useState(initial);
@@ -42,7 +42,7 @@ export default function Auth({ initial = 'login', onLogin, onBack }) {
 
   return (
     <div className="auth">
-      <div className="blob b1" /><div className="blob b3" />
+      <Bg />
       <div className="authwrap">
         <div className="authside">
           <img src="/logo.jpg" alt="GrowLand" className="logo" />

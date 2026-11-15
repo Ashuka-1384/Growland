@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { sb, PUBLIC_COLS, level, fmt, fa2en, bumpToday, MIN_CHARS, REPORT_XP, nf } from './db.js';
+import { sb, PUBLIC_COLS, level, xpInto, fmt, fa2en, bumpToday, MIN_CHARS, REPORT_XP, nf } from './db.js';
 import { Modal, Avatar, Growth, Thread, RoleBadge, Icon, Ring, Empty, Tile, toast } from './ui.jsx';
 
 /* ---------- پنل رشد من ---------- */
@@ -17,7 +17,7 @@ export function MyPanel({ user, go }) {
       setRank((a.count || 0) + 1); setReports(b.count || 0); setMsg(c.data?.[0] || null);
     })();
   }, [user.xp]);
-  const lv = level(user.xp), into = user.xp % 1000;
+  const lv = level(user.xp), into = xpInto(user.xp);
   return (
     <div>
       <div className="clay herocard">
@@ -91,7 +91,7 @@ export function Members() {
               <Avatar name={m.name} size={64} />
               <h3>{m.name} <RoleBadge role={m.role} /></h3>
               <p className="muted">{m.field} · {m.city} · {nf(m.age)} ساله</p>
-              <div className="bar"><div style={{ width: (m.xp % 1000) / 10 + '%' }} /></div>
+              <div className="bar"><div style={{ width: xpInto(m.xp) / 10 + '%' }} /></div>
               <div className="row between cardfoot"><span className="chip">لول {nf(level(m.xp))}</span><small className="muted">{nf(m.xp)} XP</small></div>
             </div>
           ))}
@@ -126,13 +126,16 @@ export function SubmitReport({ user, refresh }) {
     const earn = len >= MIN_CHARS ? REPORT_XP : 0;
     const { error } = await sb.from('reports').insert({ user_id: user.id, content: text.trim(), xp_awarded: earn });
     if (error) { setBusy(false); return toast('خطا: ' + error.message, 'err'); }
+    let up = 0;
     if (earn) {
       const { data } = await sb.from('profiles').select('xp').eq('id', user.id).single();
-      await sb.from('profiles').update({ xp: (data?.xp || 0) + earn }).eq('id', user.id);
+      const old = data?.xp || 0;
+      await sb.from('profiles').update({ xp: old + earn }).eq('id', user.id);
+      if (level(old + earn) > level(old)) up = level(old + earn);
     }
     await bumpToday(user.id);
     setText(''); setBusy(false);
-    toast(earn ? `گزارش ثبت شد و ${earn} XP گرفتی 🎉` : `گزارش ثبت شد (برای XP حداقل ${MIN_CHARS} حرف لازمه)`);
+    toast(up ? `🎉 تبریک! به لول ${nf(up)} رسیدی` : earn ? `گزارش ثبت شد و ${earn} XP گرفتی 🎉` : `گزارش ثبت شد (برای XP حداقل ${MIN_CHARS} حرف لازمه)`);
     load(); refresh();
   };
   return (
@@ -140,7 +143,7 @@ export function SubmitReport({ user, refresh }) {
       <div className="pagehead"><h2>ارسال گزارش رشد</h2></div>
       <div className="split2">
         <div className="clay pad">
-          <textarea rows="9" value={text} onChange={(e) => setText(e.target.value)} placeholder="امروز چه کارهایی انجام دادی؟ چی یاد گرفتی؟ چه چالشی داشتی؟" />
+          <textarea rows="9" maxLength={5000} value={text} onChange={(e) => setText(e.target.value)} placeholder="امروز چه کارهایی انجام دادی؟ چی یاد گرفتی؟ چه چالشی داشتی؟" />
           <div className="row between">
             <div className="row"><Ring value={len} max={MIN_CHARS} size={52} stroke={6}><small className="tiny">{len >= MIN_CHARS ? '✓' : nf(len)}</small></Ring>
               <small className={len >= MIN_CHARS ? 'ok' : 'muted'}>{len >= MIN_CHARS ? `عالیه! ${REPORT_XP} XP می‌گیری` : `${nf(MIN_CHARS - len)} حرف دیگه تا ${REPORT_XP} XP`}</small></div>

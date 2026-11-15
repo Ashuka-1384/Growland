@@ -3,7 +3,7 @@
 سیستم ردیابی رشد و توسعه فردی (React + Vite + Supabase)
 
 ## راه‌اندازی
-1. در Supabase یک پروژه بساز و محتوای `supabase.sql` را در SQL Editor اجرا کن.
+1. در Supabase یک پروژه بساز و محتوای `supabase.sql` را در SQL Editor اجرا کن (اگر قبلاً اجرا کرده‌ای، لازم نیست دوباره اجرا کنی).
 2. در `src/config.js` مقدار `SUPABASE_URL` و `SUPABASE_KEY` (anon public) را بگذار.
 3. اجرا روی سیستم: `npm install` سپس `npm run dev`
 4. دیپلوی: پروژه را روی GitHub بگذار و در Vercel ایمپورت کن (Framework: Vite، بدون تنظیم اضافه).

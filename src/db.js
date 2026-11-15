@@ -6,7 +6,8 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ستون‌های عمومی (بدون رمز عبور و شماره موبایل)
 export const PUBLIC_COLS = 'id,name,age,city,field,role,xp,supervisor_id,created_at';
-export const level = (xp) => Math.floor((xp || 0) / 1000) + 1;
+export const level = (xp) => Math.floor(Math.max(0, xp || 0) / 1000) + 1;
+export const xpInto = (xp) => Math.max(0, xp || 0) % 1000;
 export const roleName = { member: 'عضو', admin: 'ادمین', super: 'سوپر ادمین' };
 export const MIN_CHARS = 150;
 export const REPORT_XP = 100;
@@ -29,8 +30,8 @@ export function last7() {
 
 export const fa2en = (s) =>
   String(s || '')
-    .replace(/[۰-۹]/g, (c) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c))
-    .replace(/[٠-٩]/g, (c) => '٠١٢٣٤٥٦٧٨٩'.indexOf(c))
+    .replace(/[۰-۹]/g, (c) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c)))
+    .replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)))
     .trim();
 
 export const canManage = (admin, member) =>

@@ -4,7 +4,7 @@ import Landing from './Landing.jsx';
 import Auth from './Auth.jsx';
 import Admin from './Admin.jsx';
 import { Members, MyPanel, SubmitReport, AdminMessages, Profile } from './pages.jsx';
-import { Avatar, Icon, ToastHost, RoleBadge } from './ui.jsx';
+import { Avatar, Icon, ToastHost, RoleBadge, Bg } from './ui.jsx';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -33,8 +33,9 @@ export default function App() {
       const { data } = await sb.from('profiles').select('id,supervisor_id');
       const ids = (data || []).filter((p) => canManage(user, p)).map((p) => p.id);
       if (ids.length) {
-        const r = await sb.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'pending').in('user_id', ids);
-        admin = r.count || 0;
+        let rq = sb.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+        if (user.role !== 'super') rq = rq.in('user_id', ids);
+        admin = (await rq).count || 0;
       }
     }
     setBadges({ msgs: m.count || 0, admin });
@@ -43,7 +44,9 @@ export default function App() {
     if (k === 'msgs') { localStorage.setItem('gl_seen_' + user.id, new Date().toISOString()); setBadges((b) => ({ ...b, msgs: 0 })); }
     setTab(k); window.scrollTo(0, 0);
   };
-  useEffect(() => { loadBadges(); }, [user?.id, tab]);
+  useEffect(() => { loadBadges(); }, [user?.id, user?.role, tab]);
+  // با هر تغییر تب، اطلاعات کاربر (XP، نقش، ...) تازه می‌شود
+  useEffect(() => { if (user) refresh(user.id); }, [tab]);
 
   if (!configured) return <div className="auth"><div className="clay authbox"><img src="/logo.jpg" className="logo" alt="" /><p>فایل <b>src/config.js</b> را با اطلاعات Supabase پر کن.</p></div></div>;
   if (!ready) return <div className="auth"><div className="spinner" /></div>;
@@ -59,19 +62,22 @@ export default function App() {
   }
 
   const isAdmin = user.role !== 'member';
-  const tabs = [['panel', 'پنل رشد', 'chart'], ['members', 'اعضا', 'users'], ['report', 'ارسال گزارش', 'file'], ['msgs', 'پیام ادمین', 'mail'], ['profile', 'پروفایل', 'user']];
-  if (isAdmin) tabs.push(['admin', 'پنل مدیریت', 'shield']);
+  const cur = tab === 'admin' && !isAdmin ? 'panel' : tab;
+  // [کلید، عنوان، آیکون، عنوان کوتاه برای موبایل]
+  const tabs = [['panel', 'پنل رشد', 'chart', 'رشد'], ['members', 'اعضا', 'users', 'اعضا'], ['report', 'ارسال گزارش', 'file', 'گزارش'], ['msgs', 'پیام ادمین', 'mail', 'پیام'], ['profile', 'پروفایل', 'user', 'پروفایل']];
+  if (isAdmin) tabs.push(['admin', 'پنل مدیریت', 'shield', 'مدیریت']);
   const badge = (k) => (k === 'msgs' ? badges.msgs : k === 'admin' ? badges.admin : 0);
   const logout = () => { localStorage.removeItem('gl_uid'); setUser(null); setView('landing'); };
 
   return (
     <div className="shell">
+      <Bg />
       <ToastHost />
       <aside className="sidebar clay">
         <img src="/logo.jpg" alt="GrowLand" className="side-logo" />
         <nav>
           {tabs.map(([k, l, ic]) => (
-            <button key={k} className={'navbtn ' + (tab === k ? 'on' : '')} onClick={() => goTab(k)}>
+            <button key={k} className={'navbtn ' + (cur === k ? 'on' : '')} onClick={() => goTab(k)}>
               <Icon n={ic} /><span>{l}</span>{badge(k) > 0 && <i className="dot">{nf(badge(k))}</i>}
             </button>
           ))}
@@ -86,17 +92,17 @@ export default function App() {
         <img src="/logo.jpg" alt="" className="mini-logo" /><b>{user.name}</b>
         <button className="btn small danger" onClick={logout}><Icon n="out" size={16} /></button>
       </header>
-      <main className="content" key={tab}>
-        {tab === 'panel' && <MyPanel user={user} go={goTab} />}
-        {tab === 'members' && <Members />}
-        {tab === 'report' && <SubmitReport user={user} refresh={() => refresh(user.id)} />}
-        {tab === 'msgs' && <AdminMessages user={user} />}
-        {tab === 'profile' && <Profile user={user} refresh={() => refresh(user.id)} />}
-        {tab === 'admin' && isAdmin && <Admin me={user} onChange={loadBadges} />}
+      <main className="content" key={cur}>
+        {cur === 'panel' && <MyPanel user={user} go={goTab} />}
+        {cur === 'members' && <Members />}
+        {cur === 'report' && <SubmitReport user={user} refresh={() => refresh(user.id)} />}
+        {cur === 'msgs' && <AdminMessages user={user} />}
+        {cur === 'profile' && <Profile user={user} refresh={() => refresh(user.id)} />}
+        {cur === 'admin' && isAdmin && <Admin me={user} onChange={loadBadges} />}
       </main>
       <nav className="bottomnav clay">
-        {tabs.map(([k, l, ic]) => (
-          <button key={k} className={tab === k ? 'on' : ''} onClick={() => goTab(k)}><Icon n={ic} size={22} /><small>{l.split(' ')[0] === 'ارسال' ? 'گزارش' : l.split(' ')[0] === 'پنل' ? (k === 'admin' ? 'مدیریت' : 'رشد') : l.split(' ')[0]}</small>{badge(k) > 0 && <i className="dot">{nf(badge(k))}</i>}</button>
+        {tabs.map(([k, l, ic, short]) => (
+          <button key={k} className={cur === k ? 'on' : ''} onClick={() => goTab(k)}><Icon n={ic} size={22} /><small>{short}</small>{badge(k) > 0 && <i className="dot">{nf(badge(k))}</i>}</button>
         ))}
       </nav>
     </div>

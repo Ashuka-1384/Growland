@@ -23,13 +23,13 @@ function MemberEditor({ me, m, reload }) {
   };
   useEffect(() => { load(); }, [m.id]);
 
-  const saveXp = async () => { await sb.from('profiles').update({ xp: parseInt(xp, 10) || 0 }).eq('id', m.id); toast('XP ذخیره شد'); reload(); };
+  const saveXp = async () => { await sb.from('profiles').update({ xp: Math.max(0, parseInt(xp, 10) || 0) }).eq('id', m.id); toast('XP ذخیره شد'); reload(); };
   const addSkill = async () => { if (!newSkill.trim()) return; await sb.from('skills').insert({ user_id: m.id, name: newSkill.trim(), xp: 0 }); setNewSkill(''); load(); };
-  const saveSkill = async (s) => { await sb.from('skills').update({ name: s.name, xp: parseInt(s.xp, 10) || 0 }).eq('id', s.id); toast('مهارت ذخیره شد'); };
+  const saveSkill = async (s) => { await sb.from('skills').update({ name: s.name, xp: Math.max(0, parseInt(s.xp, 10) || 0) }).eq('id', s.id); toast('مهارت ذخیره شد'); };
   const delSkill = async (id) => { await sb.from('skills').delete().eq('id', id); load(); };
   const editSkill = (id, k, v) => setSkills(skills.map((s) => (s.id === id ? { ...s, [k]: v } : s)));
   const saveActs = async () => {
-    const rows = days.map((d) => ({ user_id: m.id, day: d.day, count: parseInt(acts[d.day], 10) || 0 }));
+    const rows = days.map((d) => ({ user_id: m.id, day: d.day, count: Math.max(0, parseInt(acts[d.day], 10) || 0) }));
     await sb.from('activity').upsert(rows, { onConflict: 'user_id,day' }); toast('نمودار هفتگی ذخیره شد');
   };
   const sendMsg = async () => {
@@ -52,7 +52,7 @@ function MemberEditor({ me, m, reload }) {
       {tab === 'xp' && (
         <>
           <div className="clay-in"><h3>XP کل <small className="muted">(روی لول اثر دارد)</small></h3>
-            <div className="row"><input type="number" value={xp} onChange={(e) => setXp(e.target.value)} /><button className="btn small" onClick={saveXp}>ذخیره</button></div></div>
+            <div className="row"><input type="number" min="0" value={xp} onChange={(e) => setXp(e.target.value)} /><button className="btn small" onClick={saveXp}>ذخیره</button></div></div>
           <div className="clay-in"><h3>مهارت‌ها</h3>
             {skills.length === 0 && <small className="muted">مهارتی ثبت نشده.</small>}
             {skills.map((s) => (
@@ -86,8 +86,10 @@ function MemberEditor({ me, m, reload }) {
 
 function ReportsTab({ me, reports, reload }) {
   const [open, setOpen] = useState(null);
+  const [keep, setKeep] = useState([]);   // گزارش‌هایی که باز شدن، تا وسط گفتگو ناپدید نشن
   const [filter, setFilter] = useState('pending');
-  const shown = reports.filter((r) => filter === 'all' || r.status === 'pending');
+  const shown = reports.filter((r) => filter === 'all' || r.status === 'pending' || keep.includes(r.id));
+  const toggle = (id) => { setOpen(open === id ? null : id); setKeep((k) => (k.includes(id) ? k : [...k, id])); };
   return (
     <div>
       <div className="seg" style={{ maxWidth: 320 }}>
@@ -101,7 +103,7 @@ function ReportsTab({ me, reports, reload }) {
           <p>{r.content}</p>
           <div className="row wrap">
             <span className={'chip ' + r.status}>{r.status === 'reviewed' ? 'بررسی شد' : 'در انتظار'}{r.xp_awarded ? ` · +${r.xp_awarded} XP` : ''}</span>
-            <button className="btn small ghost" onClick={() => setOpen(open === r.id ? null : r.id)}>پاسخ / گفتگو</button>
+            <button className="btn small ghost" onClick={() => toggle(r.id)}>پاسخ / گفتگو</button>
             {r.status === 'pending' && <button className="btn small" onClick={async () => { await sb.from('reports').update({ status: 'reviewed' }).eq('id', r.id); toast('علامت‌گذاری شد'); reload(); }}><Icon n="check" size={16} /> بررسی شد</button>}
           </div>
           {open === r.id && <Thread report={r} me={me} onSent={reload} />}
@@ -113,7 +115,12 @@ function ReportsTab({ me, reports, reload }) {
 
 function TeamTab({ me, all, reload }) {
   const admins = all.filter((a) => a.role !== 'member');
-  const upd = async (id, patch) => { await sb.from('profiles').update(patch).eq('id', id); toast('ذخیره شد'); reload(); };
+  const upd = async (id, patch) => {
+    await sb.from('profiles').update(patch).eq('id', id);
+    // اگر ادمینی به عضو عادی تبدیل شد، افراد زیر نظرش بدون سرپرست می‌شوند
+    if (patch.role === 'member') await sb.from('profiles').update({ supervisor_id: null }).eq('supervisor_id', id);
+    toast('ذخیره شد'); reload();
+  };
   const rows = all.filter((m) => m.id !== me.id);
   return (
     <div className="clay pad">
@@ -124,7 +131,7 @@ function TeamTab({ me, all, reload }) {
         <tbody>{rows.map((m) => (
           <tr key={m.id}>
             <td><b>{m.name}</b></td><td>{m.field}</td>
-            <td><select value={m.role} onChange={(e) => upd(m.id, { role: e.target.value })}><option value="member">عضو</option><option value="admin">ادمین</option></select></td>
+            <td>{m.role === 'super' ? <RoleBadge role="super" /> : <select value={m.role} onChange={(e) => upd(m.id, { role: e.target.value })}><option value="member">عضو</option><option value="admin">ادمین</option></select>}</td>
             <td><select value={m.supervisor_id || ''} onChange={(e) => upd(m.id, { supervisor_id: e.target.value || null })}>
               <option value="">بدون سرپرست</option>
               {admins.filter((a) => a.id !== m.id).map((a) => <option key={a.id} value={a.id}>{a.name} ({roleName[a.role]})</option>)}
@@ -167,7 +174,9 @@ export default function Admin({ me, onChange }) {
     setAll(everyone);
     const ids = everyone.filter((m) => canManage(me, m)).map((m) => m.id);
     if (!ids.length) return setReports([]);
-    const r = await sb.from('reports').select('*, user:profiles!user_id(name)').in('user_id', ids).order('created_at', { ascending: false });
+    let rq = sb.from('reports').select('*, user:profiles!user_id(name)').order('created_at', { ascending: false });
+    if (me.role !== 'super') rq = rq.in('user_id', ids);
+    const r = await rq;
     setReports(r.data || []);
     onChange && onChange();
   };
@@ -202,12 +211,12 @@ export default function Admin({ me, onChange }) {
             <div className="searchbox"><Icon n="search" size={18} /><input placeholder="جستجو..." value={q} onChange={(e) => setQ(e.target.value)} /></div>
             {mine.length === 0 && <Empty icon="users" text="فعلا کسی زیر نظر تو نیست. سوپر ادمین باید افراد را به تو بسپارد." />}
             {list.map((m) => (
-              <div key={m.id} className={'clay mini ' + (sel === m.id ? 'active' : '')} onClick={() => setSel(m.id)}>
+              <div key={m.id} className={'clay mini ' + (sel === m.id ? 'active' : '')} onClick={() => { setSel(m.id); setTimeout(() => document.getElementById('editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); }}>
                 <Avatar name={m.name} size={40} /><div className="grow"><b>{m.name}</b><br /><small className="muted">{roleName[m.role]} · لول {nf(level(m.xp))}</small></div>
               </div>
             ))}
           </div>
-          <div>{current ? <MemberEditor key={current.id} me={me} m={current} reload={load} /> : <Empty icon="user" text="یک نفر را از لیست انتخاب کن." />}</div>
+          <div id="editor">{current ? <MemberEditor key={current.id} me={me} m={current} reload={load} /> : <Empty icon="user" text="یک نفر را از لیست انتخاب کن." />}</div>
         </div>
       )}
       {tab === 'reports' && <ReportsTab me={me} reports={reports} reload={load} />}
