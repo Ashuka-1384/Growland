@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { sb, configured, canManage, nf } from './db.js';
+import { sb, configured, canManage, nf, level, tierOf } from './db.js';
 import Landing from './Landing.jsx';
 import Auth from './Auth.jsx';
 import Admin from './Admin.jsx';
 import { Members, MyPanel, SubmitReport, AdminMessages, Profile } from './pages.jsx';
-import { Avatar, Icon, ToastHost, RoleBadge, Bg } from './ui.jsx';
+import { Avatar, Icon, ToastHost, CelebrateHost, RoleBadge, TierBadge, Bg } from './ui.jsx';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -73,6 +73,7 @@ export default function App() {
     <div className="shell">
       <Bg />
       <ToastHost />
+      <CelebrateHost />
       <aside className="sidebar clay">
         <img src="/logo.jpg" alt="GrowLand" className="side-logo" />
         <nav>
@@ -83,13 +84,13 @@ export default function App() {
           ))}
         </nav>
         <div className="usercard">
-          <Avatar name={user.name} size={42} />
-          <div className="grow"><b>{user.name}</b><br /><RoleBadge role={user.role} /></div>
+          <Avatar name={user.name} size={42} t={tierOf(level(user.xp))} />
+          <div className="grow"><b>{user.name}</b><br /><small className="en muted">LV {nf(level(user.xp))}</small> <RoleBadge role={user.role} /></div>
           <button className="btn small danger" title="خروج" onClick={logout}><Icon n="out" size={16} /></button>
         </div>
       </aside>
       <header className="mobtop clay">
-        <img src="/logo.jpg" alt="" className="mini-logo" /><b>{user.name}</b>
+        <img src="/logo.jpg" alt="" className="mini-logo" /><b className="grow">{user.name}</b><span className="chip en">LV {nf(level(user.xp))}</span>
         <button className="btn small danger" onClick={logout}><Icon n="out" size={16} /></button>
       </header>
       <main className="content" key={cur}>

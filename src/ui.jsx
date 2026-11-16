@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { sb, level, xpInto, last7, fmt, roleName, daysAgo, streakOf, nf } from './db.js';
+import { sb, level, xpInto, last7, fmt, roleName, daysAgo, dstr, streakOf, nf, tierOf, ACHIEVEMENTS } from './db.js';
 
 /* ---------- آیکون ---------- */
 const P = {
@@ -43,16 +43,40 @@ export function ToastHost() {
     push = (m, t) => {
       const id = Math.random();
       setL((x) => [...x, { id, m, t }]);
-      setTimeout(() => setL((x) => x.filter((i) => i.id !== id)), 3000);
+      setTimeout(() => setL((x) => x.filter((i) => i.id !== id)), t === 'xp' ? 2600 : 3200);
     };
     return () => { push = () => {}; };
   }, []);
   return <div className="toasts">{l.map((i) => <div key={i.id} className={'toast ' + i.t}>{i.m}</div>)}</div>;
 }
 
+/* ---------- جشن لول‌آپ ---------- */
+let fire = () => {};
+export const celebrate = (d) => fire(d);
+export function CelebrateHost() {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    fire = (x) => { setD(x); setTimeout(() => setD(null), 3600); };
+    return () => { fire = () => {}; };
+  }, []);
+  if (!d) return null;
+  const t = tierOf(d.level);
+  return (
+    <div className="celebrate" onClick={() => setD(null)} style={{ '--tc': t.c, '--tg': t.g }}>
+      <div className="cel-burst">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ '--a': i * (360 / 28) + 'deg', '--d': 0.5 + (i % 5) * 0.12 + 's' }} />)}</div>
+      <div className="cel-box">
+        <small className="en">LEVEL UP</small>
+        <div className="cel-n en">{nf(d.level)}</div>
+        <b>{t.name}</b>
+        {d.tierUp && <p className="cel-tier">🏆 رتبه جدید باز شد!</p>}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- المان‌های پایه ---------- */
 export function Bg() {
-  return <div className="bgfx"><i className="blob b1" /><i className="blob b2" /><i className="blob b3" /></div>;
+  return <div className="bgfx"><i className="blob b1" /><i className="blob b2" /><i className="blob b3" /><i className="gridfx" /><i className="scan" /></div>;
 }
 
 export function Modal({ onClose, children }) {
@@ -72,10 +96,13 @@ export function Modal({ onClose, children }) {
     </div>
   );
 }
-export const Avatar = ({ name, size = 56 }) => (
-  <div className="avatar" style={{ width: size, height: size, fontSize: size / 2.2 }}>{(name || '?').trim()[0]}</div>
+export const Avatar = ({ name, size = 56, t }) => (
+  <div className="avatar" style={{ width: size, height: size, fontSize: size / 2.2, ...(t ? { '--tc': t.c, '--tg': t.g } : {}) }}>
+    {(name || '?').trim()[0]}
+  </div>
 );
 export const RoleBadge = ({ role }) => role !== 'member' && <span className={'badge ' + role}>{roleName[role]}</span>;
+export const TierBadge = ({ t }) => <span className="tbadge" style={{ '--tc': t.c, '--tg': t.g }}>{t.name}</span>;
 export const Empty = ({ icon = 'leaf', text }) => (
   <div className="empty"><div className="empty-i"><Icon n={icon} size={30} /></div><p>{text}</p></div>
 );
@@ -85,15 +112,33 @@ export const Tile = ({ icon, label, value, sub }) => (
     <div><div className="tile-v">{value}</div><div className="tile-l">{label}</div>{sub && <small className="muted">{sub}</small>}</div>
   </div>
 );
+export function CountUp({ to, dur = 1200 }) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf, t0;
+    const step = (t) => {
+      if (!t0) t0 = t;
+      const p = Math.min((t - t0) / dur, 1);
+      setV(Math.round((to || 0) * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [to]);
+  return nf(v);
+}
+export const XpBar = ({ value, max = 1000, height = 14 }) => (
+  <div className="xpbar" style={{ height }}><div style={{ width: Math.min(100, Math.max(0, (value / max) * 100)) + '%' }} /><span /></div>
+);
 export function Ring({ value, max = 100, size = 120, stroke = 12, children }) {
-  const r = (size - stroke) / 2, c = 2 * Math.PI * r, p = Math.min(value / max, 1);
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, p = Math.min(Math.max(value, 0) / max, 1);
   return (
     <div className="ring" style={{ width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#b6ec6e" /><stop offset="1" stopColor="#3f8f26" /></linearGradient></defs>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#d6e9c6" strokeWidth={stroke} />
+        <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#7dff3a" /><stop offset="1" stopColor="#00f0ff" /></linearGradient></defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="url(#rg)" strokeWidth={stroke} strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={c * (1 - p)} style={{ transition: 'stroke-dashoffset .9s ease' }} />
+          strokeDasharray={c} strokeDashoffset={c * (1 - p)} style={{ transition: 'stroke-dashoffset 1s ease', filter: 'drop-shadow(0 0 5px rgba(0,240,255,.7))' }} />
       </svg>
       <div className="ringc">{children}</div>
     </div>
@@ -106,18 +151,18 @@ export function Radar({ skills }) {
   const C = 180, R = 100, CY = 160;
   const pt = (i, r) => { const a = (-90 + (i * 360) / n) * (Math.PI / 180); return [C + r * Math.cos(a), CY + r * Math.sin(a)]; };
   const ring = (f) => skills.map((_, i) => pt(i, R * f).join(',')).join(' ');
-  const poly = skills.map((s, i) => pt(i, R * (s.xp / max)).join(',')).join(' ');
+  const poly = skills.map((s, i) => pt(i, R * Math.max(0, s.xp / max)).join(',')).join(' ');
   return (
     <svg viewBox="0 0 360 320" className="chart" style={{ direction: 'ltr' }}>
-      {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ring(f)} fill="none" stroke="#c9dcbc" />)}
-      {skills.map((_, i) => <line key={i} x1={C} y1={CY} x2={pt(i, R)[0]} y2={pt(i, R)[1]} stroke="#c9dcbc" />)}
-      <polygon points={poly} fill="rgba(108,192,74,.45)" stroke="#3f8f26" strokeWidth="2.5" strokeLinejoin="round" />
-      {skills.map((s, i) => { const [x, y] = pt(i, R * (s.xp / max)); return <circle key={'d' + s.id} cx={x} cy={y} r="4" fill="#3f8f26" />; })}
+      {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ring(f)} fill="none" stroke="rgba(125,255,58,.2)" />)}
+      {skills.map((_, i) => <line key={i} x1={C} y1={CY} x2={pt(i, R)[0]} y2={pt(i, R)[1]} stroke="rgba(125,255,58,.2)" />)}
+      <polygon points={poly} fill="rgba(0,240,255,.22)" stroke="#00f0ff" strokeWidth="2.5" strokeLinejoin="round" />
+      {skills.map((s, i) => { const [x, y] = pt(i, R * Math.max(0, s.xp / max)); return <circle key={'d' + s.id} cx={x} cy={y} r="4" fill="#7dff3a" />; })}
       {skills.map((s, i) => {
         const [x, y] = pt(i, R + 14);
         const anchor = x > C + 12 ? 'start' : x < C - 12 ? 'end' : 'middle';
         const label = s.name.length > 14 ? s.name.slice(0, 13) + '…' : s.name;
-        return <text key={s.id} x={x} y={y + 4} textAnchor={anchor} fontSize="11" fill="#355a22">{label}</text>;
+        return <text key={s.id} x={x} y={y + 4} textAnchor={anchor} fontSize="11" fill="#cfe0ff">{label}</text>;
       })}
     </svg>
   );
@@ -128,47 +173,103 @@ export function Bars({ acts }) {
   const max = Math.max(...vals, 1);
   return (
     <svg viewBox="0 0 320 190" className="chart" style={{ direction: 'ltr' }}>
-      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#a6e872" /><stop offset="1" stopColor="#3f8f26" /></linearGradient></defs>
-      {[0, 1, 2, 3].map((i) => <line key={i} x1="8" x2="312" y1={140 - i * 40} y2={140 - i * 40} stroke="#d6e6c8" strokeDasharray="4 5" />)}
+      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#00f0ff" /><stop offset="1" stopColor="#7dff3a" /></linearGradient></defs>
+      {[0, 1, 2, 3].map((i) => <line key={i} x1="8" x2="312" y1={140 - i * 40} y2={140 - i * 40} stroke="rgba(138,147,199,.18)" strokeDasharray="4 5" />)}
       {days.map((d, i) => {
         const h = (vals[i] / max) * 115;
         return (
           <g key={d.day}>
-            <rect x={14 + i * 43} y={140 - h} width="30" height={Math.max(h, 4)} rx="10" fill="url(#g)" />
-            <text x={29 + i * 43} y={133 - h} textAnchor="middle" fontSize="11" fontWeight="700" fill="#355a22">{nf(vals[i])}</text>
-            <text x={29 + i * 43} y="160" textAnchor="middle" fontSize="9" fill="#5b7a4a">{d.label}</text>
+            <rect x={14 + i * 43} y={140 - h} width="30" height={Math.max(h, 4)} rx="6" fill="url(#g)" />
+            <text x={29 + i * 43} y={133 - h} textAnchor="middle" fontSize="11" fontWeight="700" fill="#e8edff">{nf(vals[i])}</text>
+            <text x={29 + i * 43} y="160" textAnchor="middle" fontSize="9" fill="#8a93c7">{d.label}</text>
           </g>
         );
       })}
     </svg>
   );
 }
+export function Heatmap({ acts }) {
+  const map = {}; acts.forEach((a) => (map[a.day] = a.count));
+  const cells = [];
+  for (let i = 83; i >= 0; i--) { const d = daysAgo(i); cells.push([d, map[d] || 0]); }
+  return <div className="heat">{cells.map(([d, c]) => <i key={d} title={`${d} · ${c}`} className={'h' + Math.min(c, 4)} />)}</div>;
+}
+
+/* ---------- کارت افتخار عضو ---------- */
+export function MemberCard({ m, rank, skills = [], onClick }) {
+  const lv = level(m.xp), t = tierOf(lv);
+  const top = [...skills].sort((a, b) => b.xp - a.xp).slice(0, 3);
+  const maxS = Math.max(...top.map((s) => s.xp), 1);
+  return (
+    <div className={'mcard ' + (rank <= 3 ? 'top top' + rank : '')} style={{ '--tc': t.c, '--tg': t.g }} onClick={onClick}>
+      <div className="mc-shine" />
+      <div className="mc-head">
+        <span className="mc-rank">{rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : '#' + nf(rank)}</span>
+        <span className="mc-tier en">{t.en}</span>
+      </div>
+      <div className="mc-av">
+        {rank === 1 && <span className="mc-crown">👑</span>}
+        <Avatar name={m.name} size={86} t={t} />
+        <span className="mc-lv"><small className="en">LV</small> {nf(lv)}</span>
+      </div>
+      <h3 className="mc-name">{m.name} <RoleBadge role={m.role} /></h3>
+      <div className="mc-title">{t.name}</div>
+      <div className="mc-meta">{m.field || '—'} · {m.city || '—'}</div>
+      <XpBar value={xpInto(m.xp)} height={10} />
+      <div className="row between mc-xp"><small className="muted">{nf(xpInto(m.xp))} / ۱٬۰۰۰</small><b>{nf(m.xp)} XP</b></div>
+      {top.length > 0 && (
+        <div className="mc-skills">
+          {top.map((s) => (
+            <div key={s.id} className="mc-sk"><span>{s.name}</span><i><b style={{ width: Math.max(4, (s.xp / maxS) * 100) + '%' }} /></i></div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ---------- نمایش رشد یک نفر ---------- */
-export function Growth({ user }) {
+export function Growth({ user, mine, go }) {
   const [skills, setSkills] = useState([]);
   const [acts, setActs] = useState([]);
+  const [rc, setRc] = useState(0);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     (async () => {
-      const [s, a] = await Promise.all([
+      const [s, a, r] = await Promise.all([
         sb.from('skills').select('*').eq('user_id', user.id).order('id'),
         sb.from('activity').select('*').eq('user_id', user.id).gte('day', daysAgo(100)),
+        sb.from('reports').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
       ]);
-      setSkills(s.data || []); setActs(a.data || []); setLoading(false);
+      setSkills(s.data || []); setActs(a.data || []); setRc(r.count || 0); setLoading(false);
     })();
   }, [user.id, user.xp]);
-  const lv = level(user.xp), into = xpInto(user.xp);
+  if (loading) return <div className="skeleton" />;
+  const streak = streakOf(acts);
   const week = last7().reduce((t, d) => t + (acts.find((a) => a.day === d.day)?.count || 0), 0);
   const maxSk = Math.max(...skills.map((s) => s.xp), 1);
-  if (loading) return <div className="skeleton" />;
+  const stats = { xp: user.xp, level: level(user.xp), streak, skills: skills.length, reports: rc, maxSkill: Math.max(0, ...skills.map((s) => s.xp)) };
+  const done = ACHIEVEMENTS.filter((a) => a.ok(stats)).length;
+  const today = acts.find((a) => a.day === dstr(new Date()))?.count || 0;
   return (
     <div>
       <div className="tiles">
-        <Tile icon="zap" label="مجموع XP" value={nf(user.xp)} sub={`${nf(1000 - into)} XP تا لول ${nf(lv + 1)}`} />
-        <Tile icon="flame" label="روز متوالی" value={nf(streakOf(acts))} />
+        <Tile icon="zap" label="مجموع XP" value={nf(user.xp)} />
+        <Tile icon="flame" label="روز متوالی" value={nf(streak)} />
         <Tile icon="trend" label="فعالیت این هفته" value={nf(week)} />
-        <Tile icon="target" label="مهارت‌ها" value={nf(skills.length)} />
+        <Tile icon="file" label="گزارش‌ها" value={nf(rc)} />
+      </div>
+      {mine && (
+        <div className={'clay quest ' + (today ? 'done' : '')}>
+          <div className="quest-i">{today ? '✅' : '🎯'}</div>
+          <div className="grow"><b>{today ? 'ماموریت امروز انجام شد!' : 'ماموریت امروز: یک گزارش بفرست'}</b>
+            <p className="muted">{today ? `زنجیره ${nf(streak)} روزه‌ات حفظ شد. فردا هم ادامه بده 🔥` : 'امروز هنوز فعالیتی ثبت نکردی؛ زنجیره‌ات رو نگه دار و ۱۰۰ XP بگیر.'}</p></div>
+          {!today && go && <button className="btn small" onClick={() => go('report')}>ارسال گزارش</button>}
+        </div>
+      )}
+      <div className="grid2">
+        <div className="clay-in"><h3>رادار مهارت‌ها</h3><Radar skills={skills} /></div>
+        <div className="clay-in"><h3>فعالیت هفتگی</h3><Bars acts={acts} /></div>
       </div>
       <div className="clay-in">
         <h3>مهارت‌ها</h3>
@@ -176,13 +277,20 @@ export function Growth({ user }) {
         {skills.map((s) => (
           <div key={s.id} className="skill">
             <div className="row between"><b>{s.name}</b><small className="muted">{nf(s.xp)} XP</small></div>
-            <div className="bar"><div style={{ width: Math.max(0, (s.xp / maxSk) * 100) + '%' }} /></div>
+            <XpBar value={s.xp} max={maxSk} height={10} />
           </div>
         ))}
       </div>
-      <div className="grid2">
-        <div className="clay-in"><h3>نمودار راداری مهارت‌ها</h3><Radar skills={skills} /></div>
-        <div className="clay-in"><h3>فعالیت هفتگی</h3><Bars acts={acts} /></div>
+      <div className="clay-in"><h3>نقشه فعالیت ۱۲ هفته اخیر</h3><Heatmap acts={acts} /></div>
+      <div className="clay-in">
+        <div className="row between"><h3>دستاوردها</h3><span className="chip">{nf(done)} از {nf(ACHIEVEMENTS.length)}</span></div>
+        <div className="ach">
+          {ACHIEVEMENTS.map((a) => (
+            <div key={a.id} className={'ach-i ' + (a.ok(stats) ? 'on' : '')} title={a.desc}>
+              <div className="ach-e">{a.icon}</div><b>{a.name}</b><small>{a.desc}</small>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -223,7 +331,7 @@ export function Thread({ report, me, onSent }) {
 export function Reveal({ children, delay = 0 }) {
   const ref = useRef(); const [v, setV] = useState(false);
   useEffect(() => {
-    const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setV(true); o.disconnect(); } }, { threshold: 0.12 });
+    const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setV(true); o.disconnect(); } }, { threshold: 0.1 });
     o.observe(ref.current); return () => o.disconnect();
   }, []);
   return <div ref={ref} className={'reveal ' + (v ? 'in' : '')} style={{ transitionDelay: delay + 'ms' }}>{children}</div>;

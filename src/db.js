@@ -56,3 +56,35 @@ export function streakOf(acts) {
   return n;
 }
 export const nf = (n) => Number(n || 0).toLocaleString('fa-IR');
+
+/* ---------- رتبه‌ها (Tier) ---------- */
+const glow = (hex, a = 0.45) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+};
+const mk = (min, name, en, c) => ({ min, name, en, c, g: glow(c) });
+export const TIERS = [
+  mk(1, 'تازه‌وارد', 'ROOKIE', '#00e5ff'),
+  mk(2, 'کاوشگر', 'EXPLORER', '#5dff7a'),
+  mk(4, 'جنگجو', 'WARRIOR', '#a77bff'),
+  mk(7, 'استاد', 'MASTER', '#ff3df0'),
+  mk(11, 'افسانه', 'LEGEND', '#ffd23f'),
+  mk(16, 'اسطوره', 'MYTHIC', '#ff5a3d'),
+];
+export const tierOf = (lv) => { let t = TIERS[0]; for (const x of TIERS) if (lv >= x.min) t = x; return t; };
+export const nextTier = (lv) => TIERS.find((t) => t.min > lv) || null;
+
+/* ---------- دستاورد‌ها ---------- */
+export const ACHIEVEMENTS = [
+  { id: 'first', icon: '🌱', name: 'اولین گام', desc: 'اولین گزارشت رو بفرست', ok: (s) => s.reports >= 1 },
+  { id: 'r10', icon: '📝', name: 'ده گزارش', desc: '۱۰ گزارش ثبت کن', ok: (s) => s.reports >= 10 },
+  { id: 'r50', icon: '🏗️', name: 'پرکار', desc: '۵۰ گزارش ثبت کن', ok: (s) => s.reports >= 50 },
+  { id: 's3', icon: '🔥', name: 'سه روز پیوسته', desc: '۳ روز پشت‌سرهم فعال باش', ok: (s) => s.streak >= 3 },
+  { id: 's7', icon: '⚡', name: 'هفته آتشین', desc: '۷ روز پیوسته فعالیت', ok: (s) => s.streak >= 7 },
+  { id: 's30', icon: '🛡️', name: 'اراده پولادین', desc: '۳۰ روز پیوسته فعالیت', ok: (s) => s.streak >= 30 },
+  { id: 'l2', icon: '⭐', name: 'لول ۲', desc: 'به لول ۲ برس', ok: (s) => s.level >= 2 },
+  { id: 'l5', icon: '🚀', name: 'لول ۵', desc: 'به لول ۵ برس', ok: (s) => s.level >= 5 },
+  { id: 'l10', icon: '👑', name: 'لول ۱۰', desc: 'به لول ۱۰ برس', ok: (s) => s.level >= 10 },
+  { id: 'sk3', icon: '🎯', name: 'چندمهارته', desc: 'حداقل ۳ مهارت داشته باش', ok: (s) => s.skills >= 3 },
+  { id: 'sk500', icon: '💎', name: 'متخصص', desc: 'یک مهارت را به ۵۰۰ XP برسان', ok: (s) => s.maxSkill >= 500 },
+];
