@@ -1,28 +1,28 @@
 import { useEffect, useState } from 'react';
 import { sb, level, xpInto, nf, TIERS, tierOf, PUBLIC_COLS } from './db.js';
-import { Icon, Reveal, Avatar, Ring, Bg, MemberCard, CountUp, XpBar, Modal } from './ui.jsx';
+import { Icon, Reveal, Avatar, Ring, Bg, MemberCard, CountUp, XpBar, Modal, ThemeToggle } from './ui.jsx';
 import { MemberProfile } from './pages.jsx';
 
 const FEATURES = [
-  ['chart', 'پنل رشد شخصی', 'لول، XP، دستاوردها، نقشه فعالیت و مهارت‌هات رو در یک HUD ببین.'],
-  ['file', 'گزارش‌دهی دوطرفه', 'گزارش بفرست، بازخورد بگیر و روی همون گزارش با سرپرستت گفتگو کن.'],
-  ['zap', 'سیستم لول و XP', 'هر گزارش ۱۵۰ حرفی ۱۰۰ XP؛ هر ۱۰۰۰ XP یک لول بالاتر.'],
-  ['target', 'رادار مهارت‌ها', 'قدرت هر مهارتت رو روی نمودار راداری ببین و نقطه ضعف‌هات رو پیدا کن.'],
-  ['shield', 'سرپرست شخصی', 'هر ادمین سرپرست گروهی از افراد است و مسیر رشدشون رو همراهی می‌کند.'],
-  ['trophy', 'تالار افتخار', 'با هر لول رتبه‌ات بالاتر می‌ره و اسمت توی لیست برترین‌ها می‌درخشه.'],
+  ['chart', 'پنل رشد شخصی', 'لول، XP، دستاوردها، نقشه فعالیت و مهارت‌های شما در یک پنل یکپارچه.'],
+  ['file', 'گزارش‌دهی دوطرفه', 'گزارش روزانه ثبت کنید، بازخورد بگیرید و روی همان گزارش با سرپرست خود گفتگو کنید.'],
+  ['zap', 'سیستم لول و XP', 'هر گزارش ۱۵۰ حرفی ۱۰۰ XP دارد و هر ۱۰۰۰ XP یک لول بالاتر است.'],
+  ['target', 'نمودار راداری مهارت‌ها', 'توازن مهارت‌های خود را ببینید و نقاط قوت و ضعف را شناسایی کنید.'],
+  ['shield', 'سرپرستی و مدیریت', 'هر ادمین سرپرست گروهی از اعضا است و گزارش‌ها و پیشرفت آن‌ها را پیگیری می‌کند.'],
+  ['trophy', 'تالار افتخار', 'رتبه‌بندی شفاف بر اساس عملکرد و نمایش برترین اعضا.'],
 ];
 const STEPS = [
-  ['۱', 'ثبت‌نام', 'حساب بساز و حوزه فعالیتت رو انتخاب کن.'],
-  ['۲', 'گزارش بده', 'هر روز کارهات رو بنویس و XP بگیر.'],
-  ['۳', 'بازخورد بگیر', 'سرپرستت گزارشت رو بررسی و راهنمایی می‌کنه.'],
-  ['۴', 'قدرتمند شو', 'لول بزن، رتبه بگیر و به تالار افتخار برس.'],
+  ['۱', 'ثبت‌نام', 'حساب کاربری بسازید و حوزه فعالیت خود را انتخاب کنید.'],
+  ['۲', 'ثبت گزارش', 'فعالیت‌های روزانه را گزارش دهید و XP دریافت کنید.'],
+  ['۳', 'دریافت بازخورد', 'سرپرست شما گزارش را بررسی و راهنمایی می‌کند.'],
+  ['۴', 'ارتقای سطح', 'لول و رتبه شما با ثبات در فعالیت افزایش می‌یابد.'],
 ];
 const FAQ = [
   ['ثبت‌نام و استفاده رایگان است؟', 'بله، همه امکانات گرولند رایگان است.'],
-  ['چطور XP می‌گیرم؟', 'با هر گزارش بالای ۱۵۰ حرف ۱۰۰ XP می‌گیری. ادمین‌ها هم می‌توانند XP را تنظیم کنند.'],
-  ['رتبه‌ها (Tier) چطور باز می‌شوند؟', 'با بالا رفتن لول، از «تازه‌وارد» شروع می‌کنی و به رتبه‌های کاوشگر، جنگجو، استاد، افسانه و اسطوره می‌رسی.'],
-  ['دیگران چه چیزهایی از من می‌بینند؟', 'لول، XP، مهارت‌ها و نمودارهای رشدت. محتوای گزارش‌هایت فقط برای سرپرست و سوپر ادمین قابل دیدن است.'],
-  ['می‌توانم اطلاعاتم را تغییر دهم؟', 'بله، از بخش «پروفایل» همه اطلاعات حسابت قابل ویرایش است.'],
+  ['XP چگونه کسب می‌شود؟', 'با ثبت هر گزارش بالای ۱۵۰ حرف، ۱۰۰ XP دریافت می‌کنید. ادمین‌ها نیز می‌توانند XP را تنظیم کنند.'],
+  ['سطوح تخصص چگونه تعیین می‌شوند؟', 'سطح تخصص بر اساس لول شما تعیین می‌شود: نوآموز، کارآموز، حرفه‌ای، متخصص، خبره و استاد.'],
+  ['دیگران چه اطلاعاتی از من می‌بینند؟', 'لول، XP، مهارت‌ها و نمودارهای رشد. محتوای گزارش‌ها فقط برای سرپرست و سوپر ادمین قابل مشاهده است.'],
+  ['آیا می‌توانم اطلاعاتم را تغییر دهم؟', 'بله، از بخش «پروفایل» همه اطلاعات حساب قابل ویرایش است.'],
 ];
 const RANGE = (i) => (TIERS[i + 1] ? `لول ${nf(TIERS[i].min)} تا ${nf(TIERS[i + 1].min - 1)}` : `لول ${nf(TIERS[i].min)} به بالا`);
 
@@ -57,23 +57,24 @@ export default function Landing({ onAuth }) {
       <header className="lnav clay">
         <img src="/logo.jpg" alt="GrowLand" className="mini-logo" />
         <nav className="llinks">
-          <a onClick={() => go('hall')}>تالار افتخار</a><a onClick={() => go('features')}>ویژگی‌ها</a>
-          <a onClick={() => go('tiers')}>مسیر قدرت</a><a onClick={() => go('how')}>نحوه کار</a><a onClick={() => go('faq')}>سوالات</a>
+          <a onClick={() => go('hall')}>تالار افتخار</a><a onClick={() => go('features')}>امکانات</a>
+          <a onClick={() => go('tiers')}>سطوح تخصص</a><a onClick={() => go('how')}>نحوه کار</a><a onClick={() => go('faq')}>سوالات متداول</a>
         </nav>
         <div className="row">
+          <ThemeToggle />
           <button className="btn small ghost" onClick={() => onAuth('login')}>ورود</button>
-          <button className="btn small" onClick={() => onAuth('register')}>شروع رایگان</button>
+          <button className="btn small" onClick={() => onAuth('register')}>ثبت‌نام</button>
         </div>
       </header>
 
       <section className="hero">
         <div className="hero-text">
           <span className="pill en"><Icon n="zap" size={14} /> GROW TOGETHER, GO FURTHER</span>
-          <h1><span className="glitch" data-text="از جوانه">از جوانه</span> <span className="grad">تا اسطوره</span></h1>
-          <p>گرولند میدان رشد توئه. گزارش بده، XP بگیر، لول بزن، رتبه‌ات رو ارتقا بده و اسمت رو توی تالار افتخار ثبت کن.</p>
+          <h1>رشد خود را <span className="grad">اندازه‌گیری کنید</span></h1>
+          <p>گرولند سامانه ثبت و پیگیری رشد فردی است: گزارش‌های روزانه، امتیاز تجربه (XP)، سطح‌بندی مهارت‌ها و بازخورد سرپرست، همه در یک پنل.</p>
           <div className="row wrap">
-            <button className="btn big" onClick={() => onAuth('register')}>ورود به میدان ⚡</button>
-            <button className="btn big ghost" onClick={() => go('hall')}>برترین‌ها رو ببین</button>
+            <button className="btn big" onClick={() => onAuth('register')}>ثبت‌نام و شروع</button>
+            <button className="btn big ghost" onClick={() => go('hall')}>مشاهده برترین‌ها</button>
           </div>
           <div className="hero-stats">
             <div><b><CountUp to={users.length} /></b><small>عضو فعال</small></div>
@@ -82,23 +83,23 @@ export default function Landing({ onAuth }) {
           </div>
         </div>
         <div className="hero-visual">
-          <div className="clay mock" style={{ '--tc': '#a77bff', '--tg': 'rgba(167,123,255,.45)' }}>
-            <div className="row between"><small className="en tier">STATUS // ONLINE</small><span className="chip">جنگجو</span></div>
+          <div className="clay mock" style={{ '--tc': '#10b981', '--tg': 'rgba(16,185,129,.3)' }}>
+            <div className="row between"><small className="muted">نمونه پنل رشد</small><span className="chip">حرفه‌ای</span></div>
             <div className="mock-body">
-              <Ring value={640} max={1000} size={130} stroke={9}><b className="big-n en">7</b><small className="en">LEVEL</small></Ring>
+              <Ring value={640} max={1000} size={130} stroke={9}><b className="big-n en">5</b><small className="en muted">LEVEL</small></Ring>
               <div className="mock-bars">{[40, 70, 55, 90, 65, 100, 80].map((h, i) => <i key={i} style={{ height: h + '%' }} />)}</div>
             </div>
             <div className="skill"><div className="row between"><small>برنامه نویسی</small><small className="en">80%</small></div><XpBar value={80} max={100} height={8} /></div>
             <div className="skill"><div className="row between"><small>تولید محتوا</small><small className="en">55%</small></div><XpBar value={55} max={100} height={8} /></div>
           </div>
-          <div className="clay float f1">🔥 ۱۲ روز متوالی</div>
-          <div className="clay float f2">⚡ +۱۰۰ XP</div>
+          <div className="clay float f1"><Icon n="trend" size={16} /> ۱۲ روز فعالیت پیوسته</div>
+          <div className="clay float f2"><Icon n="zap" size={16} /> +۱۰۰ XP</div>
         </div>
       </section>
 
       {top3.length > 0 && (
         <section id="hall" className="sec">
-          <Reveal><h2 className="sec-t">🏆 تالار افتخار</h2><p className="sec-s">قدرتمندترین اعضای گرولند؛ روی کارت‌ها کلیک کن و مسیر رشدشون رو ببین</p></Reveal>
+          <Reveal><h2 className="sec-t">تالار افتخار</h2><p className="sec-s">برترین اعضای گرولند بر اساس XP. برای مشاهده مسیر رشد هر عضو روی کارت او کلیک کنید.</p></Reveal>
           <Reveal><div className="hall">
             {hall.map((m) => <MemberCard key={m.id} m={m} rank={rankOf(m)} skills={skills[m.id]} onClick={() => setSel(m)} />)}
           </div></Reveal>
@@ -113,12 +114,12 @@ export default function Landing({ onAuth }) {
                 </div>); })}
             </div></Reveal>
           )}
-          <div className="center" style={{ marginTop: 18 }}><button className="btn" onClick={() => onAuth('register')}>اسمم هم اینجا باشه!</button></div>
+          <div className="center" style={{ marginTop: 18 }}><button className="btn" onClick={() => onAuth('register')}>به جمع اعضا بپیوندید</button></div>
         </section>
       )}
 
       <section id="features" className="sec">
-        <Reveal><h2 className="sec-t">تجهیزات رشد</h2><p className="sec-s">هر چی برای قوی‌تر شدن لازم داری</p></Reveal>
+        <Reveal><h2 className="sec-t">امکانات</h2><p className="sec-s">ابزارهای لازم برای ثبت و پیگیری رشد</p></Reveal>
         <div className="fgrid">
           {FEATURES.map(([ic, t, d], i) => (
             <Reveal key={t} delay={i * 70}><div className="clay feat"><div className="tile-i"><Icon n={ic} size={24} /></div><h3>{t}</h3><p>{d}</p></div></Reveal>
@@ -127,7 +128,7 @@ export default function Landing({ onAuth }) {
       </section>
 
       <section id="tiers" className="sec">
-        <Reveal><h2 className="sec-t">مسیر قدرت</h2><p className="sec-s">۶ رتبه، یک مسیر؛ هر لول تو رو به اسطوره شدن نزدیک‌تر می‌کنه</p></Reveal>
+        <Reveal><h2 className="sec-t">سطوح تخصص</h2><p className="sec-s">شش سطح؛ با افزایش لول، سطح تخصص شما ارتقا می‌یابد.</p></Reveal>
         <div className="tierpath">
           {TIERS.map((t, i) => (
             <Reveal key={t.en} delay={i * 80}><div className="tier-card" style={{ '--tc': t.c, '--tg': t.g }}>
@@ -138,7 +139,7 @@ export default function Landing({ onAuth }) {
       </section>
 
       <section id="how" className="sec">
-        <Reveal><h2 className="sec-t">چطور شروع کنم؟</h2></Reveal>
+        <Reveal><h2 className="sec-t">نحوه کار</h2></Reveal>
         <div className="steps">
           {STEPS.map(([n, t, d], i) => (
             <Reveal key={n} delay={i * 90}><div className="clay step"><div className="num">{n}</div><h3>{t}</h3><p>{d}</p></div></Reveal>
@@ -149,9 +150,9 @@ export default function Landing({ onAuth }) {
       <section className="sec">
         <Reveal>
           <div className="clay levelbox">
-            <div><h2 className="sec-t left">قانون XP</h2>
-              <p>هر گزارش با حداقل <b>۱۵۰ حرف</b> برابر <b>۱۰۰ XP</b> است و هر <b>۱۰۰۰ XP</b> یک لول بالاتر. مهارت‌ها هم جداگانه XP می‌گیرند تا ببینی کدام توانایی‌ات قوی‌تره.</p>
-              <button className="btn" onClick={() => onAuth('register')}>اولین گزارشم رو می‌فرستم</button></div>
+            <div><h2 className="sec-t left">قوانین امتیازدهی</h2>
+              <p>هر گزارش با حداقل <b>۱۵۰ حرف</b> برابر <b>۱۰۰ XP</b> است و با هر <b>۱۰۰۰ XP</b> یک لول بالاتر می‌روید. مهارت‌ها نیز XP جداگانه دارند تا توانایی‌های شما قابل مقایسه باشد.</p>
+              <button className="btn" onClick={() => onAuth('register')}>شروع ثبت گزارش</button></div>
             <div className="ladder">{[1, 2, 3, 4, 5].map((l) => (
               <div key={l} className="clay-in rung" style={{ marginRight: (5 - l) * 14 }}><Icon n="star" size={18} /> لول {nf(l)} <small className="muted">{nf((l - 1) * 1000)} XP</small></div>
             ))}</div>
@@ -178,8 +179,8 @@ export default function Landing({ onAuth }) {
 
       <section className="sec">
         <Reveal><div className="clay cta">
-          <h2>آماده‌ی لول‌آپ هستی؟</h2><p>امروز وارد میدان شو؛ گرولند کنارته.</p>
-          <button className="btn big light" onClick={() => onAuth('register')}>ساخت حساب رایگان ⚡</button>
+          <h2>مسیر رشد خود را از امروز ثبت کنید</h2><p>ثبت‌نام رایگان است و کمتر از یک دقیقه زمان می‌برد.</p>
+          <button className="btn big" onClick={() => onAuth('register')}>ایجاد حساب رایگان</button>
         </div></Reveal>
       </section>
 

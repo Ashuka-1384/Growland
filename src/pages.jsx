@@ -25,7 +25,7 @@ export function MemberProfile({ m, rank }) {
       </div>
       <XpBar value={xpInto(m.xp)} />
       <small className="muted">
-        {nf(1000 - xpInto(m.xp))} XP تا لول {nf(lv + 1)}{nt ? ` · ${nf(nt.min - lv)} لول تا رتبه «${nt.name}»` : ' · به بالاترین رتبه رسیده 🔥'}
+        {nf(1000 - xpInto(m.xp))} XP تا لول {nf(lv + 1)}{nt ? ` · ${nf(nt.min - lv)} لول تا رتبه «${nt.name}»` : ' · به بالاترین رتبه رسیده است'}
       </small>
       <Growth user={m} />
     </div>
@@ -55,7 +55,7 @@ export function MyPanel({ user, go }) {
         </div>
         <div className="grow">
           <small className="tier en">{t.en} · {t.name}</small>
-          <h1 className="hello"><span className="glitch" data-text={user.name}>{user.name}</span></h1>
+          <h1 className="hello">{user.name}</h1>
           <p className="muted">{user.field} · {user.city}</p>
           <XpBar value={into} height={18} />
           <div className="row between"><small className="muted">{nf(into)} / ۱٬۰۰۰ XP</small><small className="ok">{nf(1000 - into)} XP تا لول {nf(lv + 1)}</small></div>
@@ -120,12 +120,12 @@ export function Members() {
         <Tile icon="users" label="اعضای گرولند" value={nf(list.length)} />
         <Tile icon="zap" label="مجموع XP جامعه" value={nf(totalXp)} />
         <Tile icon="star" label="میانگین لول" value={nf(avgLv)} />
-        <Tile icon="trophy" label="قدرتمندترین" value={list[0]?.name || '—'} />
+        <Tile icon="trophy" label="برترین عضو" value={list[0]?.name || '—'} />
       </div>
 
       {hall && (
         <>
-          <h3 className="sec-h">🏆 تالار افتخار</h3>
+          <h3 className="sec-h">تالار افتخار</h3>
           <div className="hall">
             {hall.map((m) => <MemberCard key={m.id} m={m} rank={rank[m.id]} skills={skills[m.id]} onClick={() => setSel(m)} />)}
           </div>
@@ -192,7 +192,7 @@ export function SubmitReport({ user, refresh }) {
     }
     await bumpToday(user.id);
     setText(''); setBusy(false);
-    if (earn) toast(`+${nf(earn)} XP ⚡`, 'xp'); else toast(`گزارش ثبت شد (برای XP حداقل ${nf(MIN_CHARS)} حرف لازمه)`);
+    if (earn) toast(`+${nf(earn)} XP`, 'xp'); else toast(`گزارش ثبت شد. برای دریافت XP حداقل ${nf(MIN_CHARS)} حرف لازم است.`);
     if (up) celebrate(up);
     load(); refresh();
   };
@@ -202,21 +202,21 @@ export function SubmitReport({ user, refresh }) {
       <div className="pagehead"><h2>ارسال گزارش رشد</h2></div>
       <div className="split2">
         <div className="clay pad">
-          <textarea rows="9" maxLength={5000} value={text} onChange={(e) => setText(e.target.value)} placeholder="امروز چه کارهایی انجام دادی؟ چی یاد گرفتی؟ چه چالشی داشتی؟" />
+          <textarea rows="9" maxLength={5000} value={text} onChange={(e) => setText(e.target.value)} placeholder="امروز چه کارهایی انجام دادید؟ چه چیزی آموختید؟ با چه چالشی روبه‌رو شدید؟" />
           <div className="row between wrap">
             <div className="row"><Ring value={len} max={MIN_CHARS} size={54} stroke={6}><small className="tiny">{full ? '✓' : nf(len)}</small></Ring>
-              <small className={full ? 'ok' : 'muted'}>{full ? `آماده‌ی دریافت ${nf(REPORT_XP)} XP` : `${nf(MIN_CHARS - len)} حرف دیگه تا ${nf(REPORT_XP)} XP`}</small></div>
+              <small className={full ? 'ok' : 'muted'}>{full ? `واجد دریافت ${nf(REPORT_XP)} XP` : `${nf(MIN_CHARS - len)} حرف تا دریافت ${nf(REPORT_XP)} XP`}</small></div>
             <button className={'btn ' + (full ? 'pulse' : '')} onClick={send} disabled={busy || len < 1}><Icon n="send" size={16} /> {full ? `ارسال و دریافت ${nf(REPORT_XP)} XP` : 'ارسال گزارش'}</button>
           </div>
         </div>
         <div className="clay pad tips">
-          <h3>نکات یک گزارش قدرتمند</h3>
-          <p>⚡ مشخص بنویس چه کاری انجام دادی</p><p>🎯 نتیجه و چیزی که یاد گرفتی رو بگو</p>
-          <p>🧩 چالش‌ها و سوالاتت رو برای سرپرست بنویس</p><p>🔥 هر روز گزارش بده تا زنجیره‌ات نشکنه</p>
+          <h3>نکات یک گزارش مؤثر</h3>
+          <p>• مشخص بنویسید چه کاری انجام داده‌اید.</p><p>• نتیجه و آموخته‌های خود را ذکر کنید.</p>
+          <p>• چالش‌ها و سؤالات خود را برای سرپرست بنویسید.</p><p>• ثبت گزارش روزانه، زنجیره فعالیت شما را حفظ می‌کند.</p>
         </div>
       </div>
       <h3>گزارش‌های قبلی من</h3>
-      {list === null ? <div className="skeleton" /> : list.length === 0 ? <Empty icon="file" text="هنوز گزارشی نفرستادی. اولین گزارشت رو بفرست!" /> : list.map((r) => (
+      {list === null ? <div className="skeleton" /> : list.length === 0 ? <Empty icon="file" text="هنوز گزارشی ثبت نشده است." /> : list.map((r) => (
         <div key={r.id} className="clay pad rep">
           <div className="row between"><small className="muted">{fmt(r.created_at)}</small>
             <span className={'chip ' + r.status}>{r.status === 'reviewed' ? 'بررسی شد' : 'در انتظار بررسی'}{r.xp_awarded ? ` · +${nf(r.xp_awarded)} XP` : ''}</span></div>
@@ -239,7 +239,7 @@ export function AdminMessages({ user }) {
   return (
     <div>
       <div className="pagehead"><h2>پیام ادمین</h2></div>
-      {list === null ? <div className="skeleton" /> : list.length === 0 ? <Empty icon="mail" text="هنوز پیامی نداری." /> : list.map((m) => (
+      {list === null ? <div className="skeleton" /> : list.length === 0 ? <Empty icon="mail" text="پیامی وجود ندارد." /> : list.map((m) => (
         <div key={m.id} className="clay pad rep row top">
           <Avatar name={m.sender?.name} size={44} />
           <div className="grow"><div className="row between"><b>{m.sender?.name}</b><small className="muted">{fmt(m.created_at)}</small></div><p>{m.content}</p></div>
@@ -262,10 +262,10 @@ export function Profile({ user, refresh }) {
   const t = tierOf(level(user.xp));
   const save = async () => {
     const phone = fa2en(f.phone), age = parseInt(fa2en(f.age), 10);
-    if (!/^09\d{9}$/.test(phone) || !f.name.trim() || !f.password || !(age > 0)) return toast('اطلاعات را درست وارد کن', 'err');
+    if (!/^09\d{9}$/.test(phone) || !f.name.trim() || !f.password || !(age > 0)) return toast('اطلاعات را به‌درستی وارد کنید', 'err');
     const { error } = await sb.from('profiles').update({ name: f.name.trim(), age, city: f.city.trim(), phone, password: f.password, field: f.field }).eq('id', user.id);
     if (error) return toast(error.code === '23505' ? 'این شماره برای شخص دیگری است' : error.message, 'err');
-    toast('اطلاعات ذخیره شد ✓'); refresh();
+    toast('اطلاعات ذخیره شد'); refresh();
   };
   return (
     <div>

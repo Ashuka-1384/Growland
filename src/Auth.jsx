@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { sb, fa2en } from './db.js';
-import { Icon, Bg } from './ui.jsx';
+import { Icon, Bg, ThemeToggle } from './ui.jsx';
 
 export default function Auth({ initial = 'login', onLogin, onBack }) {
   const [mode, setMode] = useState(initial);
@@ -22,7 +22,7 @@ export default function Auth({ initial = 'login', onLogin, onBack }) {
     setErr('');
     const phone = fa2en(f.phone);
     if (!/^09\d{9}$/.test(phone)) return setErr('شماره موبایل باید به شکل 09123456789 باشد');
-    if (!f.password) return setErr('رمز عبور را وارد کن');
+    if (!f.password) return setErr('رمز عبور را وارد کنید');
     setBusy(true);
     if (mode === 'login') {
       const { data } = await sb.from('profiles').select('id').eq('phone', phone).eq('password', f.password).maybeSingle();
@@ -31,23 +31,24 @@ export default function Auth({ initial = 'login', onLogin, onBack }) {
       return onLogin(data.id);
     }
     const age = parseInt(fa2en(f.age), 10);
-    if (!f.name.trim() || !f.city.trim() || !(age > 0 && age < 120)) { setBusy(false); return setErr('همه فیلدها را درست پر کن'); }
+    if (!f.name.trim() || !f.city.trim() || !(age > 0 && age < 120)) { setBusy(false); return setErr('همه فیلدها را به‌درستی پر کنید'); }
     const { data, error } = await sb.from('profiles')
       .insert({ name: f.name.trim(), age, city: f.city.trim(), phone, password: f.password, field: f.field })
       .select('id').single();
     setBusy(false);
-    if (error) return setErr(error.code === '23505' ? 'این شماره قبلا ثبت‌نام کرده' : 'خطا در ثبت‌نام: ' + error.message);
+    if (error) return setErr(error.code === '23505' ? 'این شماره قبلاً ثبت‌نام کرده است' : 'خطا در ثبت‌نام: ' + error.message);
     onLogin(data.id);
   };
 
   return (
     <div className="auth">
       <Bg />
+      <div className="themefab"><ThemeToggle /></div>
       <div className="authwrap">
         <div className="authside">
           <img src="/logo.jpg" alt="GrowLand" className="logo" />
-          <h2>{mode === 'login' ? 'خوش برگشتی!' : 'به گرولند خوش اومدی'}</h2>
-          <p>{mode === 'login' ? 'وارد شو و مسیر رشدت رو ادامه بده.' : 'حساب بساز، گزارش بده و لول بزن.'}</p>
+          <h2>{mode === 'login' ? 'ورود به حساب کاربری' : 'ایجاد حساب کاربری'}</h2>
+          <p>{mode === 'login' ? 'وارد شوید و مسیر رشد خود را ادامه دهید.' : 'ثبت‌نام کنید و فعالیت‌های خود را ثبت و پیگیری کنید.'}</p>
         </div>
         <form className="clay authbox" onSubmit={submit}>
           <button type="button" className="btn small ghost backbtn" onClick={onBack}><Icon n="back" size={16} /> بازگشت</button>

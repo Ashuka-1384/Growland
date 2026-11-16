@@ -76,7 +76,7 @@ function MemberEditor({ me, m, reload }) {
       )}
       {tab === 'msg' && (
         <div className="clay-in"><h3>پیام برای {m.name}</h3>
-          <textarea rows="4" value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="پیامت رو بنویس..." />
+          <textarea rows="4" value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="متن پیام..." />
           <button className="btn small" onClick={sendMsg}><Icon n="send" size={16} /> ارسال پیام</button></div>
       )}
       {tab === 'view' && <Growth user={m} />}
@@ -96,7 +96,7 @@ function ReportsTab({ me, reports, reload }) {
         <button className={filter === 'pending' ? 'on' : ''} onClick={() => setFilter('pending')}>بررسی‌نشده</button>
         <button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>همه</button>
       </div>
-      {shown.length === 0 && <Empty icon="check" text={filter === 'pending' ? 'همه گزارش‌ها بررسی شده‌اند 🎉' : 'گزارشی وجود ندارد.'} />}
+      {shown.length === 0 && <Empty icon="check" text={filter === 'pending' ? 'همه گزارش‌ها بررسی شده‌اند.' : 'گزارشی وجود ندارد.'} />}
       {shown.map((r) => (
         <div key={r.id} className="clay pad rep">
           <div className="row between"><div className="row"><Avatar name={r.user?.name} size={38} /><b>{r.user?.name}</b></div><small className="muted">{fmt(r.created_at)}</small></div>
@@ -125,7 +125,7 @@ function TeamTab({ me, all, reload }) {
   return (
     <div className="clay pad">
       <h3>نقش‌ها و سرپرستی</h3>
-      <p className="muted">نقش هر نفر را تعیین کن و مشخص کن سرپرستش کدام ادمین است.</p>
+      <p className="muted">نقش هر عضو و ادمین سرپرست او را مشخص کنید.</p>
       <div className="tablewrap"><table>
         <thead><tr><th>نام</th><th>حوزه</th><th>نقش</th><th>سرپرست</th></tr></thead>
         <tbody>{rows.map((m) => (
@@ -148,7 +148,7 @@ function FieldsTab() {
   const [name, setName] = useState('');
   const load = () => sb.from('fields').select('*').order('id').then(({ data }) => setList(data || []));
   useEffect(() => { load(); }, []);
-  const add = async () => { if (!name.trim()) return; const { error } = await sb.from('fields').insert({ name: name.trim() }); if (error) return toast('این حوزه قبلا هست', 'err'); setName(''); load(); toast('حوزه اضافه شد'); };
+  const add = async () => { if (!name.trim()) return; const { error } = await sb.from('fields').insert({ name: name.trim() }); if (error) return toast('این حوزه قبلاً ثبت شده است', 'err'); setName(''); load(); toast('حوزه اضافه شد'); };
   return (
     <div className="clay pad narrow">
       <h3>حوزه‌های فعالیت (فرم ثبت‌نام)</h3>
@@ -209,14 +209,14 @@ export default function Admin({ me, onChange }) {
         <div className="split">
           <div className="side">
             <div className="searchbox"><Icon n="search" size={18} /><input placeholder="جستجو..." value={q} onChange={(e) => setQ(e.target.value)} /></div>
-            {mine.length === 0 && <Empty icon="users" text="فعلا کسی زیر نظر تو نیست. سوپر ادمین باید افراد را به تو بسپارد." />}
+            {mine.length === 0 && <Empty icon="users" text="در حال حاضر عضوی تحت سرپرستی شما نیست. سوپر ادمین باید اعضا را به شما اختصاص دهد." />}
             {list.map((m) => (
               <div key={m.id} className={'clay mini ' + (sel === m.id ? 'active' : '')} onClick={() => { setSel(m.id); setTimeout(() => document.getElementById('editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); }}>
                 <Avatar name={m.name} size={40} /><div className="grow"><b>{m.name}</b><br /><small className="muted">{roleName[m.role]} · لول {nf(level(m.xp))}</small></div>
               </div>
             ))}
           </div>
-          <div id="editor">{current ? <MemberEditor key={current.id} me={me} m={current} reload={load} /> : <Empty icon="user" text="یک نفر را از لیست انتخاب کن." />}</div>
+          <div id="editor">{current ? <MemberEditor key={current.id} me={me} m={current} reload={load} /> : <Empty icon="user" text="یک عضو را از لیست انتخاب کنید." />}</div>
         </div>
       )}
       {tab === 'reports' && <ReportsTab me={me} reports={reports} reload={load} />}

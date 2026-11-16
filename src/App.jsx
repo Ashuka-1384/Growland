@@ -4,7 +4,7 @@ import Landing from './Landing.jsx';
 import Auth from './Auth.jsx';
 import Admin from './Admin.jsx';
 import { Members, MyPanel, SubmitReport, AdminMessages, Profile } from './pages.jsx';
-import { Avatar, Icon, ToastHost, CelebrateHost, RoleBadge, TierBadge, Bg } from './ui.jsx';
+import { Avatar, Icon, ToastHost, CelebrateHost, RoleBadge, Bg, ThemeToggle } from './ui.jsx';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -48,7 +48,7 @@ export default function App() {
   // با هر تغییر تب، اطلاعات کاربر (XP، نقش، ...) تازه می‌شود
   useEffect(() => { if (user) refresh(user.id); }, [tab]);
 
-  if (!configured) return <div className="auth"><div className="clay authbox"><img src="/logo.jpg" className="logo" alt="" /><p>فایل <b>src/config.js</b> را با اطلاعات Supabase پر کن.</p></div></div>;
+  if (!configured) return <div className="auth"><div className="clay authbox"><img src="/logo.jpg" className="logo" alt="" /><p>فایل <b>src/config.js</b> را با اطلاعات Supabase پر کنید.</p></div></div>;
   if (!ready) return <div className="auth"><div className="spinner" /></div>;
   if (!user) {
     return (
@@ -83,6 +83,7 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <div className="row between" style={{ marginBottom: 10 }}><small className="muted">پوسته نمایش</small><ThemeToggle /></div>
         <div className="usercard">
           <Avatar name={user.name} size={42} t={tierOf(level(user.xp))} />
           <div className="grow"><b>{user.name}</b><br /><small className="en muted">LV {nf(level(user.xp))}</small> <RoleBadge role={user.role} /></div>
@@ -90,7 +91,7 @@ export default function App() {
         </div>
       </aside>
       <header className="mobtop clay">
-        <img src="/logo.jpg" alt="" className="mini-logo" /><b className="grow">{user.name}</b><span className="chip en">LV {nf(level(user.xp))}</span>
+        <img src="/logo.jpg" alt="" className="mini-logo" /><b className="grow">{user.name}</b><span className="chip en">LV {nf(level(user.xp))}</span><ThemeToggle />
         <button className="btn small danger" onClick={logout}><Icon n="out" size={16} /></button>
       </header>
       <main className="content" key={cur}>

@@ -27,6 +27,8 @@ const P = {
   close: 'M18 6L6 18 M6 6l12 12',
   star: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.3-6.2 3.3L7 14.2 2 9.3l6.9-1z',
   edit: 'M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
+  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42',
+  moon: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z',
 };
 export const Icon = ({ n, size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -50,7 +52,7 @@ export function ToastHost() {
   return <div className="toasts">{l.map((i) => <div key={i.id} className={'toast ' + i.t}>{i.m}</div>)}</div>;
 }
 
-/* ---------- جشن لول‌آپ ---------- */
+/* ---------- اعلان ارتقای سطح ---------- */
 let fire = () => {};
 export const celebrate = (d) => fire(d);
 export function CelebrateHost() {
@@ -63,12 +65,11 @@ export function CelebrateHost() {
   const t = tierOf(d.level);
   return (
     <div className="celebrate" onClick={() => setD(null)} style={{ '--tc': t.c, '--tg': t.g }}>
-      <div className="cel-burst">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ '--a': i * (360 / 28) + 'deg', '--d': 0.5 + (i % 5) * 0.12 + 's' }} />)}</div>
-      <div className="cel-box">
-        <small className="en">LEVEL UP</small>
+      <div className="clay cel-box">
+        <small>ارتقای سطح</small>
         <div className="cel-n en">{nf(d.level)}</div>
-        <b>{t.name}</b>
-        {d.tierUp && <p className="cel-tier">🏆 رتبه جدید باز شد!</p>}
+        <b>{t.name} <span className="en muted">· {t.en}</span></b>
+        {d.tierUp && <p className="cel-tier">شما به سطح تخصصی «{t.name}» ارتقا یافتید.</p>}
       </div>
     </div>
   );
@@ -76,7 +77,18 @@ export function CelebrateHost() {
 
 /* ---------- المان‌های پایه ---------- */
 export function Bg() {
-  return <div className="bgfx"><i className="blob b1" /><i className="blob b2" /><i className="blob b3" /><i className="gridfx" /><i className="scan" /></div>;
+  return <div className="bgfx"><i className="blob b1" /><i className="blob b2" /><i className="gridfx" /></div>;
+}
+
+export function ThemeToggle() {
+  const [t, setT] = useState(document.documentElement.dataset.theme || 'dim');
+  const flip = () => {
+    const n = t === 'dim' ? 'light' : 'dim';
+    document.documentElement.dataset.theme = n;
+    try { localStorage.setItem('gl_theme', n); } catch (e) {}
+    setT(n);
+  };
+  return <button className="btn small ghost themebtn" onClick={flip} title="تغییر پوسته (روشن / ملایم)"><Icon n={t === 'dim' ? 'sun' : 'moon'} size={16} /></button>;
 }
 
 export function Modal({ onClose, children }) {
@@ -135,10 +147,10 @@ export function Ring({ value, max = 100, size = 120, stroke = 12, children }) {
   return (
     <div className="ring" style={{ width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#7dff3a" /><stop offset="1" stopColor="#00f0ff" /></linearGradient></defs>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth={stroke} />
+        <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style={{ stopColor: 'var(--n1)' }} /><stop offset="1" style={{ stopColor: 'var(--n2)' }} /></linearGradient></defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" style={{ stroke: 'var(--track)' }} strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="url(#rg)" strokeWidth={stroke} strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={c * (1 - p)} style={{ transition: 'stroke-dashoffset 1s ease', filter: 'drop-shadow(0 0 5px rgba(0,240,255,.7))' }} />
+          strokeDasharray={c} strokeDashoffset={c * (1 - p)} style={{ transition: 'stroke-dashoffset 1s ease' }} />
       </svg>
       <div className="ringc">{children}</div>
     </div>
@@ -154,15 +166,15 @@ export function Radar({ skills }) {
   const poly = skills.map((s, i) => pt(i, R * Math.max(0, s.xp / max)).join(',')).join(' ');
   return (
     <svg viewBox="0 0 360 320" className="chart" style={{ direction: 'ltr' }}>
-      {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ring(f)} fill="none" stroke="rgba(125,255,58,.2)" />)}
-      {skills.map((_, i) => <line key={i} x1={C} y1={CY} x2={pt(i, R)[0]} y2={pt(i, R)[1]} stroke="rgba(125,255,58,.2)" />)}
-      <polygon points={poly} fill="rgba(0,240,255,.22)" stroke="#00f0ff" strokeWidth="2.5" strokeLinejoin="round" />
-      {skills.map((s, i) => { const [x, y] = pt(i, R * Math.max(0, s.xp / max)); return <circle key={'d' + s.id} cx={x} cy={y} r="4" fill="#7dff3a" />; })}
+      {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ring(f)} fill="none" className="cg" />)}
+      {skills.map((_, i) => <line key={i} x1={C} y1={CY} x2={pt(i, R)[0]} y2={pt(i, R)[1]} className="cg" />)}
+      <polygon points={poly} className="rp" strokeWidth="2.5" strokeLinejoin="round" />
+      {skills.map((s, i) => { const [x, y] = pt(i, R * Math.max(0, s.xp / max)); return <circle key={'d' + s.id} cx={x} cy={y} r="4" className="rd" />; })}
       {skills.map((s, i) => {
         const [x, y] = pt(i, R + 14);
         const anchor = x > C + 12 ? 'start' : x < C - 12 ? 'end' : 'middle';
         const label = s.name.length > 14 ? s.name.slice(0, 13) + '…' : s.name;
-        return <text key={s.id} x={x} y={y + 4} textAnchor={anchor} fontSize="11" fill="#cfe0ff">{label}</text>;
+        return <text key={s.id} x={x} y={y + 4} textAnchor={anchor} fontSize="11" className="ct">{label}</text>;
       })}
     </svg>
   );
@@ -173,15 +185,15 @@ export function Bars({ acts }) {
   const max = Math.max(...vals, 1);
   return (
     <svg viewBox="0 0 320 190" className="chart" style={{ direction: 'ltr' }}>
-      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#00f0ff" /><stop offset="1" stopColor="#7dff3a" /></linearGradient></defs>
-      {[0, 1, 2, 3].map((i) => <line key={i} x1="8" x2="312" y1={140 - i * 40} y2={140 - i * 40} stroke="rgba(138,147,199,.18)" strokeDasharray="4 5" />)}
+      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style={{ stopColor: 'var(--n2)' }} /><stop offset="1" style={{ stopColor: 'var(--n1)' }} /></linearGradient></defs>
+      {[0, 1, 2, 3].map((i) => <line key={i} x1="8" x2="312" y1={140 - i * 40} y2={140 - i * 40} className="cg" strokeDasharray="4 5" />)}
       {days.map((d, i) => {
         const h = (vals[i] / max) * 115;
         return (
           <g key={d.day}>
             <rect x={14 + i * 43} y={140 - h} width="30" height={Math.max(h, 4)} rx="6" fill="url(#g)" />
-            <text x={29 + i * 43} y={133 - h} textAnchor="middle" fontSize="11" fontWeight="700" fill="#e8edff">{nf(vals[i])}</text>
-            <text x={29 + i * 43} y="160" textAnchor="middle" fontSize="9" fill="#8a93c7">{d.label}</text>
+            <text x={29 + i * 43} y={133 - h} textAnchor="middle" fontSize="11" fontWeight="700" className="ct">{nf(vals[i])}</text>
+            <text x={29 + i * 43} y="160" textAnchor="middle" fontSize="9" className="cm">{d.label}</text>
           </g>
         );
       })}
@@ -204,11 +216,10 @@ export function MemberCard({ m, rank, skills = [], onClick }) {
     <div className={'mcard ' + (rank <= 3 ? 'top top' + rank : '')} style={{ '--tc': t.c, '--tg': t.g }} onClick={onClick}>
       <div className="mc-shine" />
       <div className="mc-head">
-        <span className="mc-rank">{rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : '#' + nf(rank)}</span>
+        <span className={'mc-rank en ' + (rank <= 3 ? 'r' + rank : '')}>{nf(rank)}</span>
         <span className="mc-tier en">{t.en}</span>
       </div>
       <div className="mc-av">
-        {rank === 1 && <span className="mc-crown">👑</span>}
         <Avatar name={m.name} size={86} t={t} />
         <span className="mc-lv"><small className="en">LV</small> {nf(lv)}</span>
       </div>
@@ -255,25 +266,25 @@ export function Growth({ user, mine, go }) {
     <div>
       <div className="tiles">
         <Tile icon="zap" label="مجموع XP" value={nf(user.xp)} />
-        <Tile icon="flame" label="روز متوالی" value={nf(streak)} />
+        <Tile icon="flame" label="روز فعالیت پیوسته" value={nf(streak)} />
         <Tile icon="trend" label="فعالیت این هفته" value={nf(week)} />
         <Tile icon="file" label="گزارش‌ها" value={nf(rc)} />
       </div>
       {mine && (
         <div className={'clay quest ' + (today ? 'done' : '')}>
-          <div className="quest-i">{today ? '✅' : '🎯'}</div>
-          <div className="grow"><b>{today ? 'ماموریت امروز انجام شد!' : 'ماموریت امروز: یک گزارش بفرست'}</b>
-            <p className="muted">{today ? `زنجیره ${nf(streak)} روزه‌ات حفظ شد. فردا هم ادامه بده 🔥` : 'امروز هنوز فعالیتی ثبت نکردی؛ زنجیره‌ات رو نگه دار و ۱۰۰ XP بگیر.'}</p></div>
+          <div className="quest-i"><Icon n={today ? 'check' : 'target'} size={24} /></div>
+          <div className="grow"><b>{today ? 'هدف امروز محقق شد' : 'هدف امروز: ثبت یک گزارش'}</b>
+            <p className="muted">{today ? `فعالیت امروز ثبت شده است. زنجیره فعالیت شما ${nf(streak)} روز است.` : 'برای حفظ زنجیره فعالیت و دریافت ۱۰۰ XP، گزارش امروز را ثبت کنید.'}</p></div>
           {!today && go && <button className="btn small" onClick={() => go('report')}>ارسال گزارش</button>}
         </div>
       )}
       <div className="grid2">
-        <div className="clay-in"><h3>رادار مهارت‌ها</h3><Radar skills={skills} /></div>
+        <div className="clay-in"><h3>نمودار راداری مهارت‌ها</h3><Radar skills={skills} /></div>
         <div className="clay-in"><h3>فعالیت هفتگی</h3><Bars acts={acts} /></div>
       </div>
       <div className="clay-in">
         <h3>مهارت‌ها</h3>
-        {skills.length === 0 && <Empty text="هنوز مهارتی ثبت نشده. ادمین مهارت‌ها را تنظیم می‌کند." />}
+        {skills.length === 0 && <Empty text="هنوز مهارتی ثبت نشده است. مهارت‌ها توسط ادمین تنظیم می‌شوند." />}
         {skills.map((s) => (
           <div key={s.id} className="skill">
             <div className="row between"><b>{s.name}</b><small className="muted">{nf(s.xp)} XP</small></div>
@@ -287,7 +298,7 @@ export function Growth({ user, mine, go }) {
         <div className="ach">
           {ACHIEVEMENTS.map((a) => (
             <div key={a.id} className={'ach-i ' + (a.ok(stats) ? 'on' : '')} title={a.desc}>
-              <div className="ach-e">{a.icon}</div><b>{a.name}</b><small>{a.desc}</small>
+              <div className="ach-e"><Icon n={a.icon} size={24} /></div><b>{a.name}</b><small>{a.desc}</small>
             </div>
           ))}
         </div>
