@@ -5,6 +5,7 @@ import { clearCache, useLive } from './hooks.js';
 import { NotifyProvider, useNotify } from './notify.jsx';
 import { closeModalRoute, useRoute } from './router.js';
 import Auth from './Auth.jsx';
+import InstallButton from './InstallButton.jsx';
 import MyPanel from './pages/MyPanel.jsx';
 import Members from './pages/Members.jsx';
 import SubmitReport from './pages/SubmitReport.jsx';
@@ -172,6 +173,7 @@ function Shell() {
           ))}
         </nav>
         <div className="row between" style={{ marginBottom: 10 }}><small className="muted">پوسته نمایش</small><ThemeToggle /></div>
+        <div style={{ marginBottom: 10 }}><InstallButton className="btn small" /></div>
         <div className="usercard">
           <Avatar name={user.name} size={42} t={tierOf(lv)} />
           <div className="grow"><b>{user.name}</b><br /><small className="en muted">LV {nf(lv)}</small> <RoleBadge role={user.role} /></div>
@@ -179,7 +181,7 @@ function Shell() {
         </div>
       </aside>
       <header className="mobtop clay">
-        <img src="/logo.jpg" alt="" className="mini-logo" /><b className="grow">{user.name}</b><span className="chip en">LV {nf(lv)}</span><ThemeToggle />
+        <img src="/logo.jpg" alt="" className="mini-logo" /><b className="grow">{user.name}</b><span className="chip en">LV {nf(lv)}</span><InstallButton /><ThemeToggle />
         <button type="button" className="btn small danger" aria-label="خروج از حساب" onClick={() => { logout(); go(''); }}><Icon n="out" size={16} /></button>
       </header>
       <main className="content" id="main-content" tabIndex={-1} ref={mainRef} key={tab}>

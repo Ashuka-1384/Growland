@@ -9,6 +9,7 @@ import '@fontsource/orbitron/900.css';
 import App from './App.jsx';
 import { store } from './db.js';
 import './styles.css';
+import { registerSW } from './pwa.js';
 
 document.documentElement.dataset.theme = store.get('gl_theme') || 'dim';
 
@@ -17,3 +18,5 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 );
+
+registerSW();

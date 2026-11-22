@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { level, xpInto, nf, TIERS, tierOf, LEVEL_XP, MIN_CHARS, REPORT_XP, DAILY_REPORT_CAP } from './db.js';
 import * as api from './api.js';
 import { useQuery } from './hooks.js';
+import InstallButton from './InstallButton.jsx';
 import { Icon, Reveal, Avatar, Ring, Bg, MemberCard, CountUp, XpBar, Modal, ThemeToggle, clickable } from './ui.jsx';
 import { MemberProfile } from './widgets.jsx';
 
@@ -54,6 +55,7 @@ export default function Landing({ onAuth }) {
           <button type="button" className="lnk" onClick={() => go('tiers')}>سطوح تخصص</button><button type="button" className="lnk" onClick={() => go('how')}>نحوه کار</button><button type="button" className="lnk" onClick={() => go('faq')}>سوالات متداول</button>
         </nav>
         <div className="row">
+          <InstallButton />
           <ThemeToggle />
           <button className="btn small ghost" onClick={() => onAuth('login')}>ورود</button>
           <button className="btn small" onClick={() => onAuth('register')}>ثبت‌نام</button>
