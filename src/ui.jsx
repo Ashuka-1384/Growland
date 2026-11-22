@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { sb, level, xpInto, last7, fmt, roleName, daysAgo, dstr, streakOf, nf, tierOf, ACHIEVEMENTS } from './db.js';
+import { Component, cloneElement, useEffect, useId, useRef, useState } from 'react';
+import { level, xpInto, last7, roleName, nf, tierOf, fmtDay, addDays, store, LEVEL_XP } from './db.js';
 
 /* ---------- آیکون ---------- */
 const P = {
@@ -31,53 +31,59 @@ const P = {
   moon: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z',
 };
 export const Icon = ({ n, size = 20 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true" focusable="false">
     {P[n].split(' M').map((d, i) => <path key={i} d={(i ? 'M' : '') + d} />)}
   </svg>
 );
 
-/* ---------- Toast ---------- */
-let push = () => {};
-export const toast = (m, t = 'ok') => push(m, t);
-export function ToastHost() {
-  const [l, setL] = useState([]);
-  useEffect(() => {
-    push = (m, t) => {
-      const id = Math.random();
-      setL((x) => [...x, { id, m, t }]);
-      setTimeout(() => setL((x) => x.filter((i) => i.id !== id)), t === 'xp' ? 2600 : 3200);
-    };
-    return () => { push = () => {}; };
-  }, []);
-  return <div className="toasts">{l.map((i) => <div key={i.id} className={'toast ' + i.t}>{i.m}</div>)}</div>;
-}
+/* ---------- کمک‌های دسترس‌پذیری ---------- */
+/** props لازم برای کلیک‌پذیر کردن یک المان غیر دکمه با کیبورد */
+export const clickable = (fn) => ({
+  role: 'button',
+  tabIndex: 0,
+  onClick: fn,
+  onKeyDown: (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(e); }
+  },
+});
 
-/* ---------- اعلان ارتقای سطح ---------- */
-let fire = () => {};
-export const celebrate = (d) => fire(d);
-export function CelebrateHost() {
-  const [d, setD] = useState(null);
-  useEffect(() => {
-    fire = (x) => { setD(x); setTimeout(() => setD(null), 3600); };
-    return () => { fire = () => {}; };
-  }, []);
-  if (!d) return null;
-  const t = tierOf(d.level);
+/** برچسبِ متصل به ورودی (با id یکتا) */
+export function Field({ label, children, className = '' }) {
+  const id = useId();
   return (
-    <div className="celebrate" onClick={() => setD(null)} style={{ '--tc': t.c, '--tg': t.g }}>
-      <div className="clay cel-box">
-        <small>ارتقای سطح</small>
-        <div className="cel-n en">{nf(d.level)}</div>
-        <b>{t.name} <span className="en muted">· {t.en}</span></b>
-        {d.tierUp && <p className="cel-tier">شما به سطح تخصصی «{t.name}» ارتقا یافتید.</p>}
-      </div>
+    <div className={'field ' + className}>
+      <label htmlFor={id}>{label}</label>
+      {cloneElement(children, { id })}
     </div>
   );
+}
+const useUid = (p) => p + useId().replace(/:/g, '');
+
+/* ---------- ErrorBoundary: خطای رندر دیگر صفحه سفید نمی‌شود ---------- */
+export class ErrorBoundary extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('GrowLand render error', error, info?.componentStack); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="auth" role="alert">
+        <div className="clay authbox center">
+          <h2>مشکلی پیش آمد</h2>
+          <p className="muted">صفحه با خطا روبه‌رو شد. اطلاعات شما از بین نرفته است.</p>
+          <div className="row" style={{ justifyContent: 'center' }}>
+            <button className="btn" onClick={() => window.location.reload()}>بارگذاری مجدد</button>
+            <button className="btn ghost" onClick={() => this.setState({ error: null })}>تلاش دوباره</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }
 
 /* ---------- المان‌های پایه ---------- */
 export function Bg() {
-  return <div className="bgfx"><i className="blob b1" /><i className="blob b2" /><i className="gridfx" /></div>;
+  return <div className="bgfx" aria-hidden="true"><i className="blob b1" /><i className="blob b2" /><i className="gridfx" /></div>;
 }
 
 export function ThemeToggle() {
@@ -85,31 +91,55 @@ export function ThemeToggle() {
   const flip = () => {
     const n = t === 'dim' ? 'light' : 'dim';
     document.documentElement.dataset.theme = n;
-    try { localStorage.setItem('gl_theme', n); } catch (e) {}
+    store.set('gl_theme', n);
     setT(n);
   };
-  return <button className="btn small ghost themebtn" onClick={flip} title="تغییر پوسته (روشن / ملایم)"><Icon n={t === 'dim' ? 'sun' : 'moon'} size={16} /></button>;
+  const label = t === 'dim' ? 'تغییر به پوسته روشن' : 'تغییر به پوسته ملایم';
+  return <button type="button" className="btn small ghost themebtn" onClick={flip} title={label} aria-label={label}><Icon n={t === 'dim' ? 'sun' : 'moon'} size={16} /></button>;
 }
 
-export function Modal({ onClose, children }) {
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/** مودال دسترس‌پذیر: role=dialog، فوکوس‌تله، Escape و بازگرداندن فوکوس */
+export function Modal({ onClose, label = 'جزئیات', children }) {
+  const box = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const titleId = useUid('modal-');
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
+    const prevFocus = document.activeElement;
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+    box.current?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') { closeRef.current(); return; }
+      if (e.key !== 'Tab' || !box.current) return;
+      const items = [...box.current.querySelectorAll(FOCUSABLE)].filter((x) => x.offsetParent !== null);
+      if (!items.length) { e.preventDefault(); return; }
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === box.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+      if (prevFocus && prevFocus.focus) prevFocus.focus();
+    };
   }, []);
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="clay modal" onClick={(e) => e.stopPropagation()}>
-        <button className="btn small ghost close" onClick={onClose}><Icon n="close" size={16} /></button>
+      <div className="clay modal" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} ref={box} onClick={(e) => e.stopPropagation()}>
+        <span id={titleId} className="sr">{label}</span>
+        <button type="button" className="btn small ghost close" onClick={onClose} aria-label="بستن"><Icon n="close" size={16} /></button>
         {children}
       </div>
     </div>
   );
 }
+
 export const Avatar = ({ name, size = 56, t }) => (
-  <div className="avatar" style={{ width: size, height: size, fontSize: size / 2.2, ...(t ? { '--tc': t.c, '--tg': t.g } : {}) }}>
+  <div className="avatar" aria-hidden="true" style={{ width: size, height: size, fontSize: size / 2.2, ...(t ? { '--tc': t.c, '--tg': t.g } : {}) }}>
     {(name || '?').trim()[0]}
   </div>
 );
@@ -118,15 +148,28 @@ export const TierBadge = ({ t }) => <span className="tbadge" style={{ '--tc': t.
 export const Empty = ({ icon = 'leaf', text }) => (
   <div className="empty"><div className="empty-i"><Icon n={icon} size={30} /></div><p>{text}</p></div>
 );
+export const Spinner = () => <div className="spinner" role="status" aria-label="در حال بارگذاری" />;
+
+/** خطای بارگذاری با دکمه تلاش مجدد */
+export const ErrorState = ({ error, onRetry }) => (
+  <div className="clay pad center" role="alert">
+    <p>{error?.message || 'خطا در دریافت اطلاعات'}</p>
+    {onRetry && <button type="button" className="btn small" onClick={onRetry}>تلاش مجدد</button>}
+  </div>
+);
+
 export const Tile = ({ icon, label, value, sub }) => (
   <div className="clay tile">
     <div className="tile-i"><Icon n={icon} size={22} /></div>
     <div><div className="tile-v">{value}</div><div className="tile-l">{label}</div>{sub && <small className="muted">{sub}</small>}</div>
   </div>
 );
+
+const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 export function CountUp({ to, dur = 1200 }) {
-  const [v, setV] = useState(0);
+  const [v, setV] = useState(() => (reduceMotion() ? to || 0 : 0));
   useEffect(() => {
+    if (reduceMotion()) { setV(to || 0); return undefined; }
     let raf, t0;
     const step = (t) => {
       if (!t0) t0 = t;
@@ -136,26 +179,35 @@ export function CountUp({ to, dur = 1200 }) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [to]);
+  }, [to, dur]);
   return nf(v);
 }
-export const XpBar = ({ value, max = 1000, height = 14 }) => (
-  <div className="xpbar" style={{ height }}><div style={{ width: Math.min(100, Math.max(0, (value / max) * 100)) + '%' }} /><span /></div>
-);
-export function Ring({ value, max = 100, size = 120, stroke = 12, children }) {
+
+export const XpBar = ({ value, max = LEVEL_XP, height = 14, label = 'پیشرفت XP' }) => {
+  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+  return (
+    <div className="xpbar" style={{ height }} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={Math.round(Math.min(value, max))}>
+      <div style={{ width: pct + '%' }} /><span />
+    </div>
+  );
+};
+
+export function Ring({ value, max = 100, size = 120, stroke = 12, children, label }) {
+  const gid = useUid('rg');
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, p = Math.min(Math.max(value, 0) / max, 1);
   return (
-    <div className="ring" style={{ width: size, height: size }}>
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style={{ stopColor: 'var(--n1)' }} /><stop offset="1" style={{ stopColor: 'var(--n2)' }} /></linearGradient></defs>
+    <div className="ring" style={{ width: size, height: size }} role={label ? 'img' : undefined} aria-label={label}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
+        <defs><linearGradient id={gid} x1="0" y1="0" x2="1" y2="1"><stop offset="0" style={{ stopColor: 'var(--n1)' }} /><stop offset="1" style={{ stopColor: 'var(--n2)' }} /></linearGradient></defs>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" style={{ stroke: 'var(--track)' }} strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="url(#rg)" strokeWidth={stroke} strokeLinecap="round"
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`url(#${gid})`} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - p)} style={{ transition: 'stroke-dashoffset 1s ease' }} />
       </svg>
       <div className="ringc">{children}</div>
     </div>
   );
 }
+
 export function Radar({ skills }) {
   const n = skills.length;
   if (n < 3) return <Empty icon="target" text="برای نمودار راداری حداقل ۳ مهارت لازم است." />;
@@ -164,8 +216,10 @@ export function Radar({ skills }) {
   const pt = (i, r) => { const a = (-90 + (i * 360) / n) * (Math.PI / 180); return [C + r * Math.cos(a), CY + r * Math.sin(a)]; };
   const ring = (f) => skills.map((_, i) => pt(i, R * f).join(',')).join(' ');
   const poly = skills.map((s, i) => pt(i, R * Math.max(0, s.xp / max)).join(',')).join(' ');
+  const summary = 'نمودار راداری مهارت‌ها: ' + skills.map((s) => `${s.name} ${nf(s.xp)} امتیاز`).join('، ');
   return (
-    <svg viewBox="0 0 360 320" className="chart" style={{ direction: 'ltr' }}>
+    <svg viewBox="0 0 360 320" className="chart" style={{ direction: 'ltr' }} role="img" aria-label={summary}>
+      <title>{summary}</title>
       {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ring(f)} fill="none" className="cg" />)}
       {skills.map((_, i) => <line key={i} x1={C} y1={CY} x2={pt(i, R)[0]} y2={pt(i, R)[1]} className="cg" />)}
       <polygon points={poly} className="rp" strokeWidth="2.5" strokeLinejoin="round" />
@@ -179,19 +233,23 @@ export function Radar({ skills }) {
     </svg>
   );
 }
-export function Bars({ acts }) {
-  const days = last7();
+
+export function Bars({ acts, today }) {
+  const gid = useUid('bg');
+  const days = last7(today);
   const vals = days.map((d) => acts.find((a) => a.day === d.day)?.count || 0);
   const max = Math.max(...vals, 1);
+  const summary = 'فعالیت ۷ روز اخیر: ' + days.map((d, i) => `${d.label} ${nf(vals[i])}`).join('، ');
   return (
-    <svg viewBox="0 0 320 190" className="chart" style={{ direction: 'ltr' }}>
-      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style={{ stopColor: 'var(--n2)' }} /><stop offset="1" style={{ stopColor: 'var(--n1)' }} /></linearGradient></defs>
+    <svg viewBox="0 0 320 190" className="chart" style={{ direction: 'ltr' }} role="img" aria-label={summary}>
+      <title>{summary}</title>
+      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" style={{ stopColor: 'var(--n2)' }} /><stop offset="1" style={{ stopColor: 'var(--n1)' }} /></linearGradient></defs>
       {[0, 1, 2, 3].map((i) => <line key={i} x1="8" x2="312" y1={140 - i * 40} y2={140 - i * 40} className="cg" strokeDasharray="4 5" />)}
       {days.map((d, i) => {
         const h = (vals[i] / max) * 115;
         return (
           <g key={d.day}>
-            <rect x={14 + i * 43} y={140 - h} width="30" height={Math.max(h, 4)} rx="6" fill="url(#g)" />
+            <rect x={14 + i * 43} y={140 - h} width="30" height={Math.max(h, 4)} rx="6" fill={`url(#${gid})`} />
             <text x={29 + i * 43} y={133 - h} textAnchor="middle" fontSize="11" fontWeight="700" className="ct">{nf(vals[i])}</text>
             <text x={29 + i * 43} y="160" textAnchor="middle" fontSize="9" className="cm">{d.label}</text>
           </g>
@@ -200,11 +258,18 @@ export function Bars({ acts }) {
     </svg>
   );
 }
-export function Heatmap({ acts }) {
-  const map = {}; acts.forEach((a) => (map[a.day] = a.count));
+
+export function Heatmap({ acts, today }) {
+  const map = {};
+  acts.forEach((a) => (map[a.day] = a.count));
   const cells = [];
-  for (let i = 83; i >= 0; i--) { const d = daysAgo(i); cells.push([d, map[d] || 0]); }
-  return <div className="heat">{cells.map(([d, c]) => <i key={d} title={`${d} · ${c}`} className={'h' + Math.min(c, 4)} />)}</div>;
+  for (let i = 83; i >= 0; i--) { const d = addDays(today, -i); cells.push([d, map[d] || 0]); }
+  const active = cells.filter(([, c]) => c > 0).length;
+  return (
+    <div className="heat" role="img" aria-label={`نقشه فعالیت ۱۲ هفته اخیر: ${nf(active)} روز فعال از ${nf(84)} روز`}>
+      {cells.map(([d, c]) => <i key={d} title={`${fmtDay(d)} · ${nf(c)}`} className={'h' + Math.min(c, 4)} />)}
+    </div>
+  );
 }
 
 /* ---------- کارت افتخار عضو ---------- */
@@ -213,7 +278,12 @@ export function MemberCard({ m, rank, skills = [], onClick }) {
   const top = [...skills].sort((a, b) => b.xp - a.xp).slice(0, 3);
   const maxS = Math.max(...top.map((s) => s.xp), 1);
   return (
-    <div className={'mcard ' + (rank <= 3 ? 'top top' + rank : '')} style={{ '--tc': t.c, '--tg': t.g }} onClick={onClick}>
+    <div
+      className={'mcard ' + (rank <= 3 ? 'top top' + rank : '')}
+      style={{ '--tc': t.c, '--tg': t.g }}
+      aria-label={`${m.name}، رتبه ${nf(rank)}، لول ${nf(lv)}، ${nf(m.xp)} امتیاز. مشاهده پروفایل`}
+      {...clickable(onClick)}
+    >
       <div className="mc-shine" />
       <div className="mc-head">
         <span className={'mc-rank en ' + (rank <= 3 ? 'r' + rank : '')}>{nf(rank)}</span>
@@ -226,8 +296,8 @@ export function MemberCard({ m, rank, skills = [], onClick }) {
       <h3 className="mc-name">{m.name} <RoleBadge role={m.role} /></h3>
       <div className="mc-title">{t.name}</div>
       <div className="mc-meta">{m.field || '—'} · {m.city || '—'}</div>
-      <XpBar value={xpInto(m.xp)} height={10} />
-      <div className="row between mc-xp"><small className="muted">{nf(xpInto(m.xp))} / ۱٬۰۰۰</small><b>{nf(m.xp)} XP</b></div>
+      <XpBar value={xpInto(m.xp)} height={10} label={`پیشرفت ${m.name} تا لول بعد`} />
+      <div className="row between mc-xp"><small className="muted">{nf(xpInto(m.xp))} / {nf(LEVEL_XP)}</small><b>{nf(m.xp)} XP</b></div>
       {top.length > 0 && (
         <div className="mc-skills">
           {top.map((s) => (
@@ -239,111 +309,23 @@ export function MemberCard({ m, rank, skills = [], onClick }) {
   );
 }
 
-/* ---------- نمایش رشد یک نفر ---------- */
-export function Growth({ user, mine, go }) {
-  const [skills, setSkills] = useState([]);
-  const [acts, setActs] = useState([]);
-  const [rc, setRc] = useState(0);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    (async () => {
-      const [s, a, r] = await Promise.all([
-        sb.from('skills').select('*').eq('user_id', user.id).order('id'),
-        sb.from('activity').select('*').eq('user_id', user.id).gte('day', daysAgo(100)),
-        sb.from('reports').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-      ]);
-      setSkills(s.data || []); setActs(a.data || []); setRc(r.count || 0); setLoading(false);
-    })();
-  }, [user.id, user.xp]);
-  if (loading) return <div className="skeleton" />;
-  const streak = streakOf(acts);
-  const week = last7().reduce((t, d) => t + (acts.find((a) => a.day === d.day)?.count || 0), 0);
-  const maxSk = Math.max(...skills.map((s) => s.xp), 1);
-  const stats = { xp: user.xp, level: level(user.xp), streak, skills: skills.length, reports: rc, maxSkill: Math.max(0, ...skills.map((s) => s.xp)) };
-  const done = ACHIEVEMENTS.filter((a) => a.ok(stats)).length;
-  const today = acts.find((a) => a.day === dstr(new Date()))?.count || 0;
-  return (
-    <div>
-      <div className="tiles">
-        <Tile icon="zap" label="مجموع XP" value={nf(user.xp)} />
-        <Tile icon="flame" label="روز فعالیت پیوسته" value={nf(streak)} />
-        <Tile icon="trend" label="فعالیت این هفته" value={nf(week)} />
-        <Tile icon="file" label="گزارش‌ها" value={nf(rc)} />
-      </div>
-      {mine && (
-        <div className={'clay quest ' + (today ? 'done' : '')}>
-          <div className="quest-i"><Icon n={today ? 'check' : 'target'} size={24} /></div>
-          <div className="grow"><b>{today ? 'هدف امروز محقق شد' : 'هدف امروز: ثبت یک گزارش'}</b>
-            <p className="muted">{today ? `فعالیت امروز ثبت شده است. زنجیره فعالیت شما ${nf(streak)} روز است.` : 'برای حفظ زنجیره فعالیت و دریافت ۱۰۰ XP، گزارش امروز را ثبت کنید.'}</p></div>
-          {!today && go && <button className="btn small" onClick={() => go('report')}>ارسال گزارش</button>}
-        </div>
-      )}
-      <div className="grid2">
-        <div className="clay-in"><h3>نمودار راداری مهارت‌ها</h3><Radar skills={skills} /></div>
-        <div className="clay-in"><h3>فعالیت هفتگی</h3><Bars acts={acts} /></div>
-      </div>
-      <div className="clay-in">
-        <h3>مهارت‌ها</h3>
-        {skills.length === 0 && <Empty text="هنوز مهارتی ثبت نشده است. مهارت‌ها توسط ادمین تنظیم می‌شوند." />}
-        {skills.map((s) => (
-          <div key={s.id} className="skill">
-            <div className="row between"><b>{s.name}</b><small className="muted">{nf(s.xp)} XP</small></div>
-            <XpBar value={s.xp} max={maxSk} height={10} />
-          </div>
-        ))}
-      </div>
-      <div className="clay-in"><h3>نقشه فعالیت ۱۲ هفته اخیر</h3><Heatmap acts={acts} /></div>
-      <div className="clay-in">
-        <div className="row between"><h3>دستاوردها</h3><span className="chip">{nf(done)} از {nf(ACHIEVEMENTS.length)}</span></div>
-        <div className="ach">
-          {ACHIEVEMENTS.map((a) => (
-            <div key={a.id} className={'ach-i ' + (a.ok(stats) ? 'on' : '')} title={a.desc}>
-              <div className="ach-e"><Icon n={a.icon} size={24} /></div><b>{a.name}</b><small>{a.desc}</small>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- گفتگوی دوطرفه روی گزارش ---------- */
-export function Thread({ report, me, onSent }) {
-  const [msgs, setMsgs] = useState([]);
-  const [text, setText] = useState('');
-  const load = async () => {
-    const { data } = await sb.from('report_messages').select('*, sender:profiles!sender_id(name)').eq('report_id', report.id).order('created_at');
-    setMsgs(data || []);
-  };
-  useEffect(() => { load(); }, [report.id]);
-  const send = async () => {
-    if (!text.trim()) return;
-    await sb.from('report_messages').insert({ report_id: report.id, sender_id: me.id, content: text.trim() });
-    if (me.id !== report.user_id) await sb.from('reports').update({ status: 'reviewed' }).eq('id', report.id);
-    else if (report.status === 'reviewed') await sb.from('reports').update({ status: 'pending' }).eq('id', report.id);
-    setText(''); load(); onSent && onSent();
-  };
-  return (
-    <div className="thread">
-      {msgs.length === 0 && <small className="muted">هنوز پیامی در این گفتگو نیست.</small>}
-      {msgs.map((m) => (
-        <div key={m.id} className={'msg ' + (m.sender_id === me.id ? 'mine' : '')}>
-          <b>{m.sender?.name}</b><p>{m.content}</p><small className="muted">{fmt(m.created_at)}</small>
-        </div>
-      ))}
-      <div className="row">
-        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="پیام یا پاسخ..." />
-        <button className="btn small" onClick={send}><Icon n="send" size={16} /></button>
-      </div>
-    </div>
-  );
-}
-
 export function Reveal({ children, delay = 0 }) {
-  const ref = useRef(); const [v, setV] = useState(false);
+  const ref = useRef(null);
+  const [v, setV] = useState(() => typeof IntersectionObserver === 'undefined');
   useEffect(() => {
+    if (v || !ref.current) return undefined;
     const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setV(true); o.disconnect(); } }, { threshold: 0.1 });
-    o.observe(ref.current); return () => o.disconnect();
-  }, []);
+    o.observe(ref.current);
+    return () => o.disconnect();
+  }, [v]);
   return <div ref={ref} className={'reveal ' + (v ? 'in' : '')} style={{ transitionDelay: delay + 'ms' }}>{children}</div>;
 }
+
+export const LoadMore = ({ paged }) => (
+  <>
+    {paged.error && <ErrorState error={paged.error} onRetry={() => (paged.items.length ? paged.loadMore() : paged.reload())} />}
+    {!paged.done && !paged.error && paged.items.length > 0 && (
+      <div className="center"><button type="button" className="btn ghost" onClick={paged.loadMore} disabled={paged.loading}>{paged.loading ? 'در حال بارگذاری...' : 'نمایش بیشتر'}</button></div>
+    )}
+  </>
+);

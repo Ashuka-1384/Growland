@@ -1,0 +1,12 @@
+{
+  "name": "GrowLand | گرولند",
+  "short_name": "GrowLand",
+  "description": "سامانه ثبت و پیگیری رشد فردی: گزارش روزانه، XP، سطح‌بندی و بازخورد سرپرست",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1b2338",
+  "theme_color": "#1b2338",
+  "icons": [{ "src": "/logo.jpg", "sizes": "any", "type": "image/jpeg" }]
+}

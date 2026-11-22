@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
-import { sb, level, xpInto, nf, TIERS, tierOf, PUBLIC_COLS } from './db.js';
-import { Icon, Reveal, Avatar, Ring, Bg, MemberCard, CountUp, XpBar, Modal, ThemeToggle } from './ui.jsx';
-import { MemberProfile } from './pages.jsx';
+import { useState } from 'react';
+import { level, xpInto, nf, TIERS, tierOf, LEVEL_XP, MIN_CHARS, REPORT_XP, DAILY_REPORT_CAP } from './db.js';
+import * as api from './api.js';
+import { useQuery } from './hooks.js';
+import { Icon, Reveal, Avatar, Ring, Bg, MemberCard, CountUp, XpBar, Modal, ThemeToggle, clickable } from './ui.jsx';
+import { MemberProfile } from './widgets.jsx';
 
 const FEATURES = [
   ['chart', 'پنل رشد شخصی', 'لول، XP، دستاوردها، نقشه فعالیت و مهارت‌های شما در یک پنل یکپارچه.'],
   ['file', 'گزارش‌دهی دوطرفه', 'گزارش روزانه ثبت کنید، بازخورد بگیرید و روی همان گزارش با سرپرست خود گفتگو کنید.'],
-  ['zap', 'سیستم لول و XP', 'هر گزارش ۱۵۰ حرفی ۱۰۰ XP دارد و هر ۱۰۰۰ XP یک لول بالاتر است.'],
+  ['zap', 'سیستم لول و XP', `هر گزارش ${nf(MIN_CHARS)} حرفی ${nf(REPORT_XP)} XP دارد و هر ${nf(LEVEL_XP)} XP یک لول بالاتر است.`],
   ['target', 'نمودار راداری مهارت‌ها', 'توازن مهارت‌های خود را ببینید و نقاط قوت و ضعف را شناسایی کنید.'],
   ['shield', 'سرپرستی و مدیریت', 'هر ادمین سرپرست گروهی از اعضا است و گزارش‌ها و پیشرفت آن‌ها را پیگیری می‌کند.'],
   ['trophy', 'تالار افتخار', 'رتبه‌بندی شفاف بر اساس عملکرد و نمایش برترین اعضا.'],
@@ -19,7 +21,7 @@ const STEPS = [
 ];
 const FAQ = [
   ['ثبت‌نام و استفاده رایگان است؟', 'بله، همه امکانات گرولند رایگان است.'],
-  ['XP چگونه کسب می‌شود؟', 'با ثبت هر گزارش بالای ۱۵۰ حرف، ۱۰۰ XP دریافت می‌کنید. ادمین‌ها نیز می‌توانند XP را تنظیم کنند.'],
+  ['XP چگونه کسب می‌شود؟', `با ثبت هر گزارش حداقل ${nf(MIN_CHARS)} حرفی، ${nf(REPORT_XP)} XP دریافت می‌کنید (حداکثر ${nf(DAILY_REPORT_CAP)} گزارش امتیازدار در روز). ادمین‌ها نیز می‌توانند XP را تنظیم کنند و هر تغییر در تاریخچه ثبت می‌شود.`],
   ['سطوح تخصص چگونه تعیین می‌شوند؟', 'سطح تخصص بر اساس لول شما تعیین می‌شود: نوآموز، کارآموز، حرفه‌ای، متخصص، خبره و استاد.'],
   ['دیگران چه اطلاعاتی از من می‌بینند؟', 'لول، XP، مهارت‌ها و نمودارهای رشد. محتوای گزارش‌ها فقط برای سرپرست و سوپر ادمین قابل مشاهده است.'],
   ['آیا می‌توانم اطلاعاتم را تغییر دهم؟', 'بله، از بخش «پروفایل» همه اطلاعات حساب قابل ویرایش است.'],
@@ -27,38 +29,29 @@ const FAQ = [
 const RANGE = (i) => (TIERS[i + 1] ? `لول ${nf(TIERS[i].min)} تا ${nf(TIERS[i + 1].min - 1)}` : `لول ${nf(TIERS[i].min)} به بالا`);
 
 export default function Landing({ onAuth }) {
-  const [users, setUsers] = useState([]);
-  const [skills, setSkills] = useState({});
-  const [reports, setReports] = useState(0);
-  const [fields, setFields] = useState([]);
   const [faq, setFaq] = useState(0);
   const [sel, setSel] = useState(null);
-  useEffect(() => {
-    (async () => {
-      const [p, s, r, f] = await Promise.all([
-        sb.from('profiles').select(PUBLIC_COLS).order('xp', { ascending: false }),
-        sb.from('skills').select('id,user_id,name,xp'),
-        sb.from('reports').select('id', { count: 'exact', head: true }),
-        sb.from('fields').select('*').order('id'),
-      ]);
-      const g = {}; (s.data || []).forEach((x) => (g[x.user_id] = [...(g[x.user_id] || []), x]));
-      setUsers(p.data || []); setSkills(g); setReports(r.count || 0); setFields(f.data || []);
-    })();
-  }, []);
+  const top = useQuery('landing:top', () => api.membersPage({ sort: 'xp', offset: 0, limit: 8 }), { stale: 60000 });
+  const users = top.data?.rows || [];
+  const ids = users.map((u) => u.id);
+  const { data: skillsData } = useQuery(`skills:${ids.join(',')}`, () => api.topSkills(ids), { enabled: ids.length > 0, stale: 60000 });
+  const skills = skillsData || {};
+  const { data: statsData } = useQuery('stats', api.communityStats, { stale: 60000 });
+  const stats = statsData || { members: 0, reports: 0, total_xp: 0 };
+  const { data: fieldsData } = useQuery('fields', api.listFields, { stale: 60000 });
+  const fields = fieldsData || [];
   const go = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-  const totalXp = users.reduce((t, x) => t + x.xp, 0);
   const top3 = users.slice(0, 3);
   const hall = top3.length === 3 ? [top3[1], top3[0], top3[2]] : top3;
-  const rankOf = (m) => users.findIndex((x) => x.id === m.id) + 1;
 
   return (
     <div className="landing">
       <Bg />
       <header className="lnav clay">
         <img src="/logo.jpg" alt="GrowLand" className="mini-logo" />
-        <nav className="llinks">
-          <a onClick={() => go('hall')}>تالار افتخار</a><a onClick={() => go('features')}>امکانات</a>
-          <a onClick={() => go('tiers')}>سطوح تخصص</a><a onClick={() => go('how')}>نحوه کار</a><a onClick={() => go('faq')}>سوالات متداول</a>
+        <nav className="llinks" aria-label="منوی صفحه">
+          <button type="button" className="lnk" onClick={() => go('hall')}>تالار افتخار</button><button type="button" className="lnk" onClick={() => go('features')}>امکانات</button>
+          <button type="button" className="lnk" onClick={() => go('tiers')}>سطوح تخصص</button><button type="button" className="lnk" onClick={() => go('how')}>نحوه کار</button><button type="button" className="lnk" onClick={() => go('faq')}>سوالات متداول</button>
         </nav>
         <div className="row">
           <ThemeToggle />
@@ -77,16 +70,16 @@ export default function Landing({ onAuth }) {
             <button className="btn big ghost" onClick={() => go('hall')}>مشاهده برترین‌ها</button>
           </div>
           <div className="hero-stats">
-            <div><b><CountUp to={users.length} /></b><small>عضو فعال</small></div>
-            <div><b><CountUp to={reports} /></b><small>گزارش ثبت‌شده</small></div>
-            <div><b><CountUp to={totalXp} /></b><small>XP کسب‌شده</small></div>
+            <div><b><CountUp to={stats.members} /></b><small>عضو فعال</small></div>
+            <div><b><CountUp to={stats.reports} /></b><small>گزارش ثبت‌شده</small></div>
+            <div><b><CountUp to={stats.total_xp} /></b><small>XP کسب‌شده</small></div>
           </div>
         </div>
         <div className="hero-visual">
           <div className="clay mock" style={{ '--tc': '#10b981', '--tg': 'rgba(16,185,129,.3)' }}>
             <div className="row between"><small className="muted">نمونه پنل رشد</small><span className="chip">حرفه‌ای</span></div>
             <div className="mock-body">
-              <Ring value={640} max={1000} size={130} stroke={9}><b className="big-n en">5</b><small className="en muted">LEVEL</small></Ring>
+              <Ring value={640} max={LEVEL_XP} size={130} stroke={9}><b className="big-n en">5</b><small className="en muted">LEVEL</small></Ring>
               <div className="mock-bars">{[40, 70, 55, 90, 65, 100, 80].map((h, i) => <i key={i} style={{ height: h + '%' }} />)}</div>
             </div>
             <div className="skill"><div className="row between"><small>برنامه نویسی</small><small className="en">80%</small></div><XpBar value={80} max={100} height={8} /></div>
@@ -101,13 +94,13 @@ export default function Landing({ onAuth }) {
         <section id="hall" className="sec">
           <Reveal><h2 className="sec-t">تالار افتخار</h2><p className="sec-s">برترین اعضای گرولند بر اساس XP. برای مشاهده مسیر رشد هر عضو روی کارت او کلیک کنید.</p></Reveal>
           <Reveal><div className="hall">
-            {hall.map((m) => <MemberCard key={m.id} m={m} rank={rankOf(m)} skills={skills[m.id]} onClick={() => setSel(m)} />)}
+            {hall.map((m) => <MemberCard key={m.id} m={m} rank={m.rank} skills={skills[m.id]} onClick={() => setSel(m)} />)}
           </div></Reveal>
-          {users.length > 3 && (
+          {stats.members > 3 && users.length > 3 && (
             <Reveal><div className="clay board">
-              {users.slice(3, 8).map((m, i) => { const t = tierOf(level(m.xp)); return (
-                <div key={m.id} className="boardrow" onClick={() => setSel(m)}>
-                  <span className="rank en">{nf(i + 4)}</span><Avatar name={m.name} size={44} t={t} />
+              {users.slice(3, 8).map((m) => { const t = tierOf(level(m.xp)); return (
+                <div key={m.id} className="boardrow" aria-label={`${m.name}، رتبه ${nf(m.rank)}`} {...clickable(() => setSel(m))}>
+                  <span className="rank en">{nf(m.rank)}</span><Avatar name={m.name} size={44} t={t} />
                   <div className="grow"><b>{m.name}</b><br /><small className="muted">{m.field} · {t.name}</small></div>
                   <div className="boardxp"><XpBar value={xpInto(m.xp)} height={6} /></div>
                   <span className="chip">لول {nf(level(m.xp))} · {nf(m.xp)} XP</span>
@@ -151,10 +144,10 @@ export default function Landing({ onAuth }) {
         <Reveal>
           <div className="clay levelbox">
             <div><h2 className="sec-t left">قوانین امتیازدهی</h2>
-              <p>هر گزارش با حداقل <b>۱۵۰ حرف</b> برابر <b>۱۰۰ XP</b> است و با هر <b>۱۰۰۰ XP</b> یک لول بالاتر می‌روید. مهارت‌ها نیز XP جداگانه دارند تا توانایی‌های شما قابل مقایسه باشد.</p>
+              <p>هر گزارش با حداقل <b>{nf(MIN_CHARS)} حرف</b> برابر <b>{nf(REPORT_XP)} XP</b> است و با هر <b>{nf(LEVEL_XP)} XP</b> یک لول بالاتر می‌روید. مهارت‌ها نیز XP جداگانه دارند تا توانایی‌های شما قابل مقایسه باشد.</p>
               <button className="btn" onClick={() => onAuth('register')}>شروع ثبت گزارش</button></div>
             <div className="ladder">{[1, 2, 3, 4, 5].map((l) => (
-              <div key={l} className="clay-in rung" style={{ marginRight: (5 - l) * 14 }}><Icon n="star" size={18} /> لول {nf(l)} <small className="muted">{nf((l - 1) * 1000)} XP</small></div>
+              <div key={l} className="clay-in rung" style={{ marginRight: (5 - l) * 14 }}><Icon n="star" size={18} /> لول {nf(l)} <small className="muted">{nf((l - 1) * LEVEL_XP)} XP</small></div>
             ))}</div>
           </div>
         </Reveal>
@@ -170,9 +163,11 @@ export default function Landing({ onAuth }) {
       <section id="faq" className="sec narrow-s">
         <Reveal><h2 className="sec-t">سوالات متداول</h2></Reveal>
         {FAQ.map(([q, a], i) => (
-          <div key={q} className="clay faq" onClick={() => setFaq(faq === i ? -1 : i)}>
-            <div className="row between"><b>{q}</b><span className={'chev ' + (faq === i ? 'open' : '')}>＋</span></div>
-            {faq === i && <p>{a}</p>}
+          <div key={q} className="clay faq">
+            <button type="button" className="faqbtn" aria-expanded={faq === i} aria-controls={`faq-${i}`} onClick={() => setFaq(faq === i ? -1 : i)}>
+              <b>{q}</b><span className={'chev ' + (faq === i ? 'open' : '')} aria-hidden="true">＋</span>
+            </button>
+            {faq === i && <p id={`faq-${i}`}>{a}</p>}
           </div>
         ))}
       </section>
@@ -185,7 +180,7 @@ export default function Landing({ onAuth }) {
       </section>
 
       <footer className="foot"><img src="/logo.jpg" alt="" className="mini-logo" /><small className="muted en">GrowLand — Grow Together, Go Further</small></footer>
-      {sel && <Modal onClose={() => setSel(null)}><MemberProfile m={sel} rank={rankOf(sel)} /></Modal>}
+      {sel && <Modal onClose={() => setSel(null)} label="پروفایل عضو"><MemberProfile m={sel} /></Modal>}
     </div>
   );
 }
