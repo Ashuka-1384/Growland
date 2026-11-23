@@ -3,12 +3,24 @@ import * as api from '../api.js';
 import { useQuery } from '../hooks.js';
 import { Avatar, CountUp, Icon, Ring, XpBar, clickable } from '../ui.jsx';
 import { Growth } from '../widgets.jsx';
+import { useNotify } from '../notify.jsx';
+import { shareCard } from '../share.js';
 
 /* ---------- پنل رشد من ---------- */
 export default function MyPanel({ user, go }) {
   const { data: rank } = useQuery(`rank:${user.id}:${user.xp}`, () => api.myRank(user.id), { stale: 20000 });
   const { data: msgs } = useQuery(`lastmsg:${user.id}`, () => api.adminMessages(user.id, 1), { stale: 20000 });
+  const { data: gr } = useQuery(`growth:${user.id}:${user.xp}`, () => api.growth(user.id), { stale: 15000 });
+  const { toast } = useNotify();
   const msg = msgs?.[0];
+  const share = async () => {
+    try {
+      const r = await shareCard({ user, streak: gr?.streak || 0, rank });
+      if (r === 'downloaded') toast('کارت دستاورد ذخیره شد');
+    } catch (e) {
+      if (e?.name !== 'AbortError') toast('ساخت کارت ممکن نشد. دوباره تلاش کنید.', 'err');
+    }
+  };
   const lv = level(user.xp), t = tierOf(lv), nt = nextTier(lv), into = xpInto(user.xp);
   return (
     <div>
@@ -28,6 +40,7 @@ export default function MyPanel({ user, go }) {
             <button type="button" className="btn small" onClick={() => go('report')}><Icon n="file" size={16} /> ارسال گزارش</button>
             <span className="chip"><Icon n="trophy" size={14} /> رتبه {rank ? nf(rank) : '...'}</span>
             <span className="chip"><Icon n="zap" size={14} /> <CountUp to={user.xp} /> XP</span>
+            <button type="button" className="btn small ghost" onClick={share}><Icon n="send" size={16} /> اشتراک‌گذاری کارت</button>
           </div>
         </div>
       </div>

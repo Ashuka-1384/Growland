@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { fmt } from '../db.js';
 import * as api from '../api.js';
 import { useQuery, invalidate } from '../hooks.js';
-import { Avatar, Empty, ErrorState } from '../ui.jsx';
+import { Avatar, Empty, ErrorState, Skeleton } from '../ui.jsx';
 
 /* ---------- پیام ادمین (وضعیت خوانده‌شده روی سرور ذخیره می‌شود) ---------- */
 export default function AdminMessages({ user, onRead }) {
@@ -16,7 +16,7 @@ export default function AdminMessages({ user, onRead }) {
     <div>
       <div className="pagehead"><h2>پیام ادمین</h2></div>
       {error && !list ? <ErrorState error={error} onRetry={reload} />
-        : list === null ? <div className="skeleton" />
+        : list === null ? <Skeleton rows={3} height={84} />
         : list.length === 0 ? <Empty icon="mail" text="پیامی وجود ندارد." />
         : list.map((m) => (
           <div key={m.id} className={'clay pad rep row top' + (m.read_at ? '' : ' unread')}>

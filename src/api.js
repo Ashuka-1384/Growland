@@ -240,6 +240,11 @@ export async function fieldUsage(name) {
   return count || 0;
 }
 
+/* ---------- اعلان پوش (اشتراک دستگاه) ---------- */
+export const pushSave = (userId, sub) =>
+  rpc('push_save', { p_user: userId, p_endpoint: sub.endpoint, p_p256dh: sub.keys?.p256dh, p_auth: sub.keys?.auth });
+export const pushRemove = (endpoint) => rpc('push_remove', { p_endpoint: endpoint });
+
 /* ---------- Realtime (اختیاری؛ اگر در دسترس نباشد polling کافی است) ---------- */
 export function subscribe(name, table, filter, onEvent) {
   try {

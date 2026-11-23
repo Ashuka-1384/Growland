@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { tierOf, nf } from './rules.js';
+import { haptic } from './pwa.js';
 
 /**
  * اعلان‌ها (Toast) و جشن ارتقای سطح با React Context
@@ -26,12 +27,14 @@ export function NotifyProvider({ children }) {
 
   const toast = useCallback((m, t = 'ok') => {
     const id = ++seq.current;
+    if (t === 'xp') haptic([20, 40, 20]); else if (t === 'err') haptic(40);
     setList((x) => [...x.slice(-3), { id, m, t }]);
     later(() => setList((x) => x.filter((i) => i.id !== id)), t === 'xp' ? 2600 : t === 'err' ? 5200 : 3200);
   }, [later]);
 
   const celebrate = useCallback((d) => {
     setCel(d);
+    haptic([30, 50, 30, 50, 140]);
     later(() => setCel(null), 3600);
   }, [later]);
 

@@ -1,17 +1,19 @@
 /* GrowLand service worker
  * - فایل‌های ثابت (JS/CSS/فونت/تصویر) با استراتژی stale-while-revalidate کش می‌شوند
  * - صفحه اصلی network-first است؛ بدون اینترنت از کش (یا صفحه آفلاین) نمایش داده می‌شود
+ * - اعلان پوش (push) و کلیک روی اعلان
  * - درخواست‌های Supabase / API هرگز کش نمی‌شوند (داده همیشه تازه و امن)
  * با هر تغییر مهم، عدد VERSION را بالا ببرید.
  */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const STATIC_CACHE = `growland-static-${VERSION}`;
 const PAGE_CACHE = `growland-pages-${VERSION}`;
-const PRECACHE = ['/', '/offline.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/logo.jpg'];
+const PRECACHE = ['/', '/offline.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/logo.jpg', '/logo-256.webp'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()),
+    // skipWaiting عمداً صدا زده نمی‌شود: نسخه‌ی جدید تا «بروزرسانی» کاربر منتظر می‌ماند (پیام SKIP_WAITING)
+    caches.open(STATIC_CACHE).then((c) => c.addAll(PRECACHE)),
   );
 });
 
@@ -28,6 +30,40 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (e) => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
+});
+
+/* ---------- اعلان پوش ---------- */
+self.addEventListener('push', (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch { d = { body: event.data ? event.data.text() : '' }; }
+  event.waitUntil(
+    self.registration.showNotification(d.title || 'GrowLand', {
+      body: d.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: d.tag,
+      lang: 'fa',
+      dir: 'rtl',
+      data: { url: d.url || '/' },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (list) => {
+      for (const c of list) {
+        if ('focus' in c) {
+          await c.focus();
+          try { await c.navigate(url); } catch { /* ignore */ }
+          return undefined;
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
 });
 
 self.addEventListener('fetch', (event) => {

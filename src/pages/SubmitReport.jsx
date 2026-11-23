@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DAILY_REPORT_CAP, MAX_REPORT_CHARS, MIN_CHARS, MIN_WORDS, REPORT_XP, fmt, isCeleb, nf, reasonText, reportEligibility } from '../db.js';
 import * as api from '../api.js';
 import { useAction, usePaged, invalidate } from '../hooks.js';
 import { useNotify } from '../notify.jsx';
-import { Empty, Icon, LoadMore, Ring } from '../ui.jsx';
+import { Empty, Icon, LoadMore, Ring, Skeleton } from '../ui.jsx';
+import { draftGet, draftSet, outboxAdd, useOutbox } from '../offline.js';
+import { haptic } from '../pwa.js';
 import { Thread } from '../widgets.jsx';
 
 function ReportItem({ r, user, onChanged, onRead }) {
@@ -40,17 +42,38 @@ function ReportItem({ r, user, onChanged, onRead }) {
 /* ---------- ارسال گزارش ---------- */
 export default function SubmitReport({ user, refresh, onRead }) {
   const { toast, celebrate } = useNotify();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => draftGet(user.id));
   const [run, busy] = useAction();
+  const pending = useOutbox(user.id);
+  const prevPending = useRef(pending);
   const paged = usePaged((offset, limit) => api.myReports(user.id, offset, limit), [user.id], 10);
   const el = reportEligibility(text);
   const len = el.chars;
 
+  // پیش‌نویس خودکار: با بستن اپ یا قطعی اینترنت متن از بین نمی‌رود
+  useEffect(() => { draftSet(user.id, text); }, [text, user.id]);
+  // وقتی گزارش‌های آفلاین ارسال شدند، لیست گزارش‌ها تازه می‌شود
+  useEffect(() => {
+    if (pending < prevPending.current) paged.reload();
+    prevPending.current = pending;
+  }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const send = async () => {
     if (len < 1) return;
-    const res = await run(() => api.submitReport(user.id, text));
+    const res = await run(async () => {
+      try { return await api.submitReport(user.id, text); } catch (e) {
+        if (api.toApiError(e).network) return { queued: true }; // اینترنت قطع است → در صف ارسال آفلاین
+        throw e;
+      }
+    });
     if (!res) return;
     setText('');
+    if (res.queued) {
+      outboxAdd(user.id, text);
+      haptic(20);
+      toast('اینترنت قطع است؛ گزارش در گوشی ذخیره شد و با اتصال ارسال می‌شود.');
+      return;
+    }
     if (res.earned > 0) toast(`+${nf(res.earned)} XP`, 'xp');
     else toast(`گزارش ثبت شد، اما XP نگرفت. ${reasonText(res.reason)}`);
     const c = isCeleb(res.old_xp, res.xp);
@@ -69,6 +92,7 @@ export default function SubmitReport({ user, refresh, onRead }) {
   return (
     <div>
       <div className="pagehead"><h2>ارسال گزارش رشد</h2></div>
+      {pending > 0 && <div className="clay pad outbox" role="status"><Icon n="send" size={18} /> <b>{nf(pending)} گزارش در انتظار ارسال</b> <small className="muted">— با برگشتن اینترنت خودکار ارسال می‌شود.</small></div>}
       <div className="split2">
         <div className="clay pad">
           <textarea rows="9" maxLength={MAX_REPORT_CHARS} value={text} onChange={(e) => setText(e.target.value)} aria-label="متن گزارش"
@@ -87,7 +111,7 @@ export default function SubmitReport({ user, refresh, onRead }) {
         </div>
       </div>
       <h3>گزارش‌های قبلی من</h3>
-      {paged.items.length === 0 && paged.loading ? <div className="skeleton" />
+      {paged.items.length === 0 && paged.loading ? <Skeleton rows={3} />
         : paged.items.length === 0 && !paged.error ? <Empty icon="file" text="هنوز گزارشی ثبت نشده است." />
         : paged.items.map((r) => <ReportItem key={r.id} r={r} user={user} onChanged={() => { invalidate('growth:'); paged.reload(); refresh(); }} onRead={onRead} />)}
       <LoadMore paged={paged} />

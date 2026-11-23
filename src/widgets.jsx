@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { ACHIEVEMENTS, LEVEL_XP, REPORT_XP, MAX_MSG_CHARS, level, xpInto, xpToNext, streakOf, last7, nextTier, tierOf, fmt, nf, today as serverToday } from './db.js';
 import * as api from './api.js';
 import { useAction, useLive, useQuery, invalidate } from './hooks.js';
-import { Avatar, Bars, Empty, ErrorState, Heatmap, Icon, Radar, RoleBadge, Ring, Tile, XpBar } from './ui.jsx';
+import { Avatar, Bars, Empty, ErrorState, Heatmap, Icon, Radar, RoleBadge, Ring, Skeleton, Tile, XpBar } from './ui.jsx';
 
 /* ---------- تاریخچه XP ---------- */
 function XpHistory({ user }) {
   const { data, error, reload } = useQuery(`xph:${user.id}:${user.xp}`, () => api.xpHistory(user.id, 10), { stale: 15000 });
   if (error) return <ErrorState error={error} onRetry={reload} />;
-  if (!data) return <div className="skeleton" style={{ height: 80 }} />;
+  if (!data) return <Skeleton rows={2} height={56} />;
   if (!data.length) return <Empty icon="zap" text="هنوز تغییری در XP ثبت نشده است." />;
   return (
     <ul className="xplist">
@@ -19,6 +19,29 @@ function XpHistory({ user }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/* ---------- چالش‌های هفتگی (از فعالیت ۷ روز اخیر محاسبه می‌شود) ---------- */
+function WeeklyMissions({ activeDays, reports, streak }) {
+  const items = [
+    ['۵ روز فعالیت در ۷ روز اخیر', activeDays, 5],
+    ['۷ گزارش امتیازدار در ۷ روز اخیر', reports, 7],
+    ['زنجیره‌ی فعالیت ۷ روزه', streak, 7],
+  ];
+  return (
+    <div className="clay pad missions">
+      <h3>چالش‌های هفتگی</h3>
+      {items.map(([label, cur, max]) => {
+        const done = cur >= max;
+        return (
+          <div key={label} className={'mission' + (done ? ' done' : '')}>
+            <div className="row between"><span>{done && <Icon n="check" size={14} />} {label}</span><small className={done ? 'ok' : 'muted'}>{nf(Math.min(cur, max))} از {nf(max)}</small></div>
+            <XpBar value={Math.min(cur, max)} max={max} height={10} label={label} />
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -36,6 +59,7 @@ export function Growth({ user, mine, go }) {
   const stats = { xp: user.xp, level: level(user.xp), streak: streak ?? streakOf(acts, today), skills: skills.length, reports: data.valid_reports, maxSkill: Math.max(0, ...skills.map((s) => s.xp)) };
   const done = ACHIEVEMENTS.filter((a) => a.ok(stats)).length;
   const todayCount = acts.find((a) => a.day === today)?.count || 0;
+  const activeDays = last7(today).filter((d) => (acts.find((a) => a.day === d.day)?.count || 0) > 0).length;
 
   return (
     <div>
@@ -53,6 +77,7 @@ export function Growth({ user, mine, go }) {
           {!todayCount && go && <button type="button" className="btn small" onClick={() => go('report')}>ارسال گزارش</button>}
         </div>
       )}
+      {mine && <WeeklyMissions activeDays={activeDays} reports={week} streak={stats.streak} />}
       <div className="grid2">
         <div className="clay-in"><h3>نمودار راداری مهارت‌ها</h3><Radar skills={skills} /></div>
         <div className="clay-in"><h3>فعالیت هفتگی</h3><Bars acts={acts} today={today} /></div>

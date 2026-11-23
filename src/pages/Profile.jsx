@@ -3,6 +3,7 @@ import { level, nf, tierOf, validateProfile } from '../db.js';
 import * as api from '../api.js';
 import { useAction, useQuery } from '../hooks.js';
 import { useNotify } from '../notify.jsx';
+import { PushToggle } from '../PwaBits.jsx';
 import { Avatar, Field, Icon, RoleBadge, Tile, TierBadge } from '../ui.jsx';
 
 /* ---------- پروفایل ---------- */
@@ -49,6 +50,7 @@ export default function Profile({ user, refresh }) {
           <button type="button" className="btn" onClick={save} disabled={busy}><Icon n="check" size={16} /> {busy ? '...' : 'ذخیره تغییرات'}</button>
         </div>
       </div>
+      <div className="clay pad" style={{ marginTop: 14 }}><PushToggle user={user} /></div>
     </div>
   );
 }

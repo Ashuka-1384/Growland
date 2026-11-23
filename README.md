@@ -52,3 +52,17 @@ supabase/migrations/   مهاجرت‌های دیتابیس
 - **آیفون (Safari):** Share ← Add to Home Screen.
 - سرویس‌ورکر فقط در نسخه build فعال است (`npm run build && npm run preview`). درخواست‌های Supabase هرگز کش نمی‌شوند.
 - بعد از هر انتشار مهم، `VERSION` را در `public/sw.js` بالا ببرید.
+
+## قابلیت‌های موبایل (V4.1)
+- **ثبت آفلاین گزارش:** با قطعی اینترنت گزارش در گوشی ذخیره و با اتصال خودکار ارسال می‌شود؛ پیش‌نویس هم خودکار ذخیره می‌شود. اپ نصب‌شده بدون اینترنت هم باز می‌شود.
+- **بروزرسانی:** نسخه‌ی جدید که منتشر شود، نوار «بروزرسانی» نشان داده می‌شود. عدد `VERSION` در `public/sw.js` را بالا ببرید.
+- **UI:** تم خودکار (از تنظیم گوشی)، لرزش (haptic)، Pull-to-refresh، نوار پایین هوشمند + دکمه شناور گزارش، اسکلت بارگذاری، انتقال نرم صفحه، عدد روی آیکون اپ، میانبرهای آیکون (گزارش/پیام/اعضا).
+- **چالش‌های هفتگی** (در پنل رشد) و **کارت دستاورد قابل اشتراک‌گذاری** (تصویر PNG).
+
+## راه‌اندازی اعلان پوش (یک‌بار)
+1. `npm install` (وابستگی `web-push` اضافه شده) و `npx web-push generate-vapid-keys`
+2. در **Vercel > Settings > Environment Variables**: `VITE_VAPID_PUBLIC_KEY`، `VAPID_PRIVATE_KEY`، `VAPID_SUBJECT`، `SUPABASE_SERVICE_KEY`، `WEBHOOK_SECRET`، `CRON_SECRET` (توضیح در `.env.example`) سپس Redeploy.
+3. در Supabase SQL Editor فایل `supabase/migrations/20261125000000_push.sql` (یا کل `supabase.sql`) را اجرا کنید.
+4. برای اعلان پیام‌ها: `supabase/push-webhooks.sql` را (بعد از جایگزینی دامنه و `WEBHOOK_SECRET`) اجرا کنید.
+5. یادآوری روزانه‌ی ۱۸:۰۰ تهران با Vercel Cron (`vercel.json`) خودکار فعال است.
+هر کاربر اعلان را از «پروفایل ← فعال‌سازی اعلان‌ها» روشن می‌کند. روی آیفون ابتدا باید اپ به Home Screen اضافه شود.

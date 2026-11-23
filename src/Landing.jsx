@@ -49,7 +49,7 @@ export default function Landing({ onAuth }) {
     <div className="landing">
       <Bg />
       <header className="lnav clay">
-        <img src="/logo.jpg" alt="GrowLand" className="mini-logo" />
+        <img src="/logo-256.webp" alt="GrowLand" className="mini-logo" width="48" height="48" />
         <nav className="llinks" aria-label="منوی صفحه">
           <button type="button" className="lnk" onClick={() => go('hall')}>تالار افتخار</button><button type="button" className="lnk" onClick={() => go('features')}>امکانات</button>
           <button type="button" className="lnk" onClick={() => go('tiers')}>سطوح تخصص</button><button type="button" className="lnk" onClick={() => go('how')}>نحوه کار</button><button type="button" className="lnk" onClick={() => go('faq')}>سوالات متداول</button>

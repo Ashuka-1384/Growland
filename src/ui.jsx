@@ -82,6 +82,13 @@ export class ErrorBoundary extends Component {
 }
 
 /* ---------- المان‌های پایه ---------- */
+/** اسکلت بارگذاری: چند کارت خاکستری متحرک به‌جای اسپینر */
+export const Skeleton = ({ rows = 3, height = 96 }) => (
+  <div aria-busy="true" aria-label="در حال بارگذاری">
+    {Array.from({ length: rows }, (_, i) => <div key={i} className="skeleton" style={{ height }} />)}
+  </div>
+);
+
 export function Bg() {
   return <div className="bgfx" aria-hidden="true"><i className="blob b1" /><i className="blob b2" /><i className="gridfx" /></div>;
 }
