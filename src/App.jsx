@@ -250,6 +250,9 @@ function Shell() {
               <Icon n={ic} /><span>{TITLES[k]}</span>{badge(k) > 0 && <i className="dot" aria-label={`${nf(badge(k))} مورد جدید`}>{nf(badge(k))}</i>}
             </button>
           ))}
+          <button type="button" className="navbtn" onClick={() => { window.location.href = 'https://growlandarchive.vercel.app/'; }}>
+            <Icon n="grid" /><span>آرشیو گرولند</span>
+          </button>
         </nav>
         <div className="row between" style={{ marginBottom: 10 }}><small className="muted">پوسته نمایش</small><ThemeToggle /></div>
         <div style={{ marginBottom: 10 }}><InstallButton className="btn small" /></div>
