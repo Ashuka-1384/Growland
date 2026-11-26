@@ -21,6 +21,7 @@ const Landing = lazy(() => import('./Landing.jsx'));
 const Admin = lazy(() => import('./Admin.jsx'));
 
 const TITLES = { panel: 'پنل رشد', members: 'اعضا', report: 'ارسال گزارش', messages: 'پیام ادمین', profile: 'پروفایل', admin: 'پنل مدیریت' };
+const ARCHIVE_URL = 'https://growlandarchive.vercel.app/';
 const REFRESH_MIN_GAP = 30000;
 
 /** نسخه‌ی ذخیره‌شده‌ی پروفایل: اپ بدون اینترنت هم باز می‌شود (گزارش آفلاین در صف می‌رود) */
@@ -273,6 +274,9 @@ function Shell() {
               <Icon n={ic} /><span>{TITLES[k]}</span>{badge(k) > 0 && <i className="dot" aria-label={`${nf(badge(k))} مورد جدید`}>{nf(badge(k))}</i>}
             </button>
           ))}
+          <a className="navbtn" href={ARCHIVE_URL} target="_blank" rel="noopener noreferrer" aria-label="آرشیو گرولند (باز شدن در تب جدید)">
+            <Icon n="archive" /><span>آرشیو گرولند</span>
+          </a>
         </nav>
         <div className="row between" style={{ marginBottom: 10 }}><small className="muted">پوسته نمایش</small><ThemeToggle /></div>
         <div style={{ marginBottom: 10 }}><InstallButton className="btn small" /></div>
@@ -308,6 +312,7 @@ function Shell() {
         {tabs.map(([k, ic, short]) => (
           <button key={k} type="button" className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined} aria-label={TITLES[k]} onClick={() => { haptic(8); tabGo(k); }}><Icon n={ic} size={22} /><small>{short}</small>{badge(k) > 0 && <i className="dot" aria-label={`${nf(badge(k))} مورد جدید`}>{nf(badge(k))}</i>}</button>
         ))}
+        <a className="navlink" href={ARCHIVE_URL} target="_blank" rel="noopener noreferrer" aria-label="آرشیو گرولند (باز شدن در تب جدید)" onClick={() => haptic(8)}><Icon n="archive" size={22} /><small>آرشیو</small></a>
       </nav>
     </div>
   );
