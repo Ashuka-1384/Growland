@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { PostgrestClient } from '@supabase/postgrest-js';
 import { SUPABASE_URL as CFG_URL, SUPABASE_KEY as CFG_KEY } from './config.js';
 import { tehranDay } from './rules.js';
 
@@ -23,10 +23,12 @@ function timeoutFetch(input, init = {}) {
   return fetch(input, { ...init, signal: ctl.signal }).finally(() => clearTimeout(timer));
 }
 
-export const sb = createClient(URL || 'http://localhost', KEY || 'anon', {
-  global: { fetch: timeoutFetch },
-  // پروژه از Supabase Auth استفاده نمی‌کند؛ پس هیچ session ای در localStorage نوشته نمی‌شود
-  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+// فقط PostgREST (بدون Realtime/Auth/Storage): بسته‌ی جاوااسکریپت بسیار سبک‌تر و بدون WebSocket
+const headers = { apikey: KEY || 'anon' };
+if (/^eyJ/.test(KEY || '')) headers.Authorization = `Bearer ${KEY}`;
+export const sb = new PostgrestClient(`${(URL || 'http://localhost').replace(/\/$/, '')}/rest/v1`, {
+  headers,
+  fetch: timeoutFetch,
 });
 
 /* ---------- ستون‌ها ---------- */

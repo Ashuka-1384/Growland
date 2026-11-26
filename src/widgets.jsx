@@ -147,7 +147,7 @@ export function Thread({ report, me, onSent, onRead }) {
   const mineReport = me.id === report.user_id;
 
   // پاسخ‌های جدید به‌صورت زنده (Realtime + polling سبک)
-  useLive({ every: 30000, channels: [[`thread-${report.id}`, 'report_messages', `report_id=eq.${report.id}`]], onTick: reload });
+  useLive({ every: 30000, onTick: reload });
 
   // عضو صاحب گزارش با باز کردن گفتگو، پاسخ‌ها را «خوانده‌شده» می‌کند
   const count = msgs?.length || 0;

@@ -1,7 +1,7 @@
 {
   "name": "growland",
   "private": true,
-  "version": "4.0.0",
+  "version": "5.0.0",
   "type": "module",
   "engines": {
     "node": ">=18"
@@ -17,6 +17,7 @@
   "dependencies": {
     "@fontsource/orbitron": "^5.1.0",
     "@fontsource/vazirmatn": "^5.1.0",
+    "@supabase/postgrest-js": "^1.15.0",
     "@supabase/supabase-js": "^2.45.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

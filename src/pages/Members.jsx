@@ -56,9 +56,6 @@ export default function Members({ selId, onSelect }) {
   const hall = hallOn ? [paged.items[1], paged.items[0], paged.items[2]] : null;
   const grid = hallOn ? paged.items.slice(3) : paged.items;
 
-  const ids = paged.items.map((m) => m.id);
-  const { data: skills } = useQuery(`skills:${ids.join(',')}`, () => api.topSkills(ids), { enabled: ids.length > 0 && view === 'cards', stale: 60000 });
-  const sk = skills || {};
 
   return (
     <div>
@@ -80,7 +77,7 @@ export default function Members({ selId, onSelect }) {
             <>
               <h3 className="sec-h">تالار افتخار</h3>
               <div className="hall">
-                {hall.map((m) => <MemberCard key={m.id} m={m} rank={m.rank} skills={sk[m.id]} onClick={() => onSelect(m.id)} />)}
+                {hall.map((m) => <MemberCard key={m.id} m={m} rank={m.rank} skills={m.skills} onClick={() => onSelect(m.id)} />)}
               </div>
             </>
           )}
@@ -102,7 +99,7 @@ export default function Members({ selId, onSelect }) {
           {paged.items.length === 0 && paged.loading ? <div className="skeleton" />
             : paged.items.length === 0 && !paged.error ? <Empty icon="users" text="عضوی پیدا نشد." />
             : view === 'cards' ? (
-              grid.length > 0 && <div className="cards">{grid.map((m) => <MemberCard key={m.id} m={m} rank={m.rank} skills={sk[m.id]} onClick={() => onSelect(m.id)} />)}</div>
+              grid.length > 0 && <div className="cards">{grid.map((m) => <MemberCard key={m.id} m={m} rank={m.rank} skills={m.skills} onClick={() => onSelect(m.id)} />)}</div>
             ) : (
               <div className="clay pad tablewrap"><table className="lb">
                 <caption className="sr">فهرست اعضا</caption>

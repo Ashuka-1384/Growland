@@ -1,11 +1,11 @@
 /* GrowLand service worker
  * - فایل‌های ثابت (JS/CSS/فونت/تصویر) با استراتژی stale-while-revalidate کش می‌شوند
- * - صفحه اصلی network-first است؛ بدون اینترنت از کش (یا صفحه آفلاین) نمایش داده می‌شود
+ * - صفحه اصلی stale-while-revalidate است: فوراً از کش باز می‌شود و پشت صحنه تازه می‌شود (روی اینترنت ضعیف منتظر شبکه نمی‌ماند)
  * - اعلان پوش (push) و کلیک روی اعلان
  * - درخواست‌های Supabase / API هرگز کش نمی‌شوند (داده همیشه تازه و امن)
  * با هر تغییر مهم، عدد VERSION را بالا ببرید.
  */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const STATIC_CACHE = `growland-static-${VERSION}`;
 const PAGE_CACHE = `growland-pages-${VERSION}`;
 const PRECACHE = ['/', '/offline.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/logo.jpg', '/logo-256.webp'];
@@ -73,16 +73,17 @@ self.addEventListener('fetch', (event) => {
   // فقط همان origin؛ Supabase و هر دامنه‌ی دیگر دست‌نخورده می‌ماند
   if (url.origin !== self.location.origin) return;
 
-  // ناوبری (باز کردن صفحه): اول شبکه، بعد کش، بعد صفحه آفلاین
+  // ناوبری (باز کردن صفحه): فوراً از کش، همزمان نسخه‌ی تازه گرفته و جایگزین می‌شود
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(PAGE_CACHE).then((c) => c.put('/', copy));
-          return res;
-        })
-        .catch(async () => (await caches.match('/')) || (await caches.match('/offline.html'))),
+      caches.open(PAGE_CACHE).then(async (cache) => {
+        const cached = await cache.match('/');
+        const network = fetch(req)
+          .then((res) => { if (res.ok) cache.put('/', res.clone()); return res; })
+          .catch(() => null);
+        if (cached) { event.waitUntil(network); return cached; }
+        return (await network) || (await caches.match('/offline.html'));
+      }),
     );
     return;
   }
@@ -93,9 +94,12 @@ self.addEventListener('fetch', (event) => {
     /\.(?:js|css|woff2?|png|jpe?g|svg|ico|webmanifest)$/.test(url.pathname);
   if (!isAsset) return;
 
+  // فایل‌های /assets/ نام‌شان هش دارد (تغییرناپذیرند): اول کش، بدون درخواست اضافه
+  const immutable = url.pathname.startsWith('/assets/');
   event.respondWith(
     caches.open(STATIC_CACHE).then(async (cache) => {
       const cached = await cache.match(req);
+      if (immutable && cached) return cached;
       const network = fetch(req)
         .then((res) => {
           if (res.ok) cache.put(req, res.clone());

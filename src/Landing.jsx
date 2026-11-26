@@ -34,9 +34,7 @@ export default function Landing({ onAuth }) {
   const [sel, setSel] = useState(null);
   const top = useQuery('landing:top', () => api.membersPage({ sort: 'xp', offset: 0, limit: 8 }), { stale: 60000 });
   const users = top.data?.rows || [];
-  const ids = users.map((u) => u.id);
-  const { data: skillsData } = useQuery(`skills:${ids.join(',')}`, () => api.topSkills(ids), { enabled: ids.length > 0, stale: 60000 });
-  const skills = skillsData || {};
+  const skills = Object.fromEntries(users.map((u) => [u.id, u.skills || []]));
   const { data: statsData } = useQuery('stats', api.communityStats, { stale: 60000 });
   const stats = statsData || { members: 0, reports: 0, total_xp: 0 };
   const { data: fieldsData } = useQuery('fields', api.listFields, { stale: 60000 });

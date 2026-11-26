@@ -3,8 +3,94 @@ import { level, fmt, last7, roleName, nf, MAX_MSG_CHARS } from './db.js';
 import * as api from './api.js';
 import { useAction, useDebounced, usePaged, useQuery, invalidate } from './hooks.js';
 import { useNotify } from './notify.jsx';
-import { Avatar, Empty, ErrorState, Icon, LoadMore, RoleBadge, Tile, clickable } from './ui.jsx';
+import { Avatar, Empty, ErrorState, Icon, LoadMore, Modal, RoleBadge, Tile, clickable } from './ui.jsx';
 import { Growth, Thread } from './widgets.jsx';
+
+/** صفحه‌ی باریک (موبایل/تبلت): ویرایشگر عضو به‌جای ستون کناری، به‌صورت صفحه‌ی کشویی باز می‌شود */
+function useNarrow(px = 860) {
+  const q = `(max-width:${px}px)`;
+  const [n, setN] = useState(() => typeof matchMedia === 'function' && matchMedia(q).matches);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return undefined;
+    const m = matchMedia(q);
+    const f = () => setN(m.matches);
+    f();
+    m.addEventListener?.('change', f);
+    return () => m.removeEventListener?.('change', f);
+  }, [q]);
+  return n;
+}
+
+/** تأیید حذف با گزینه‌ی «برگرداندن XP» (window.confirm چنین امکانی ندارد و روی PWA موبایل گاهی بسته می‌شود) */
+function ConfirmDelete({ title, text, revokeLabel, onCancel, onConfirm, busy }) {
+  const [revoke, setRevoke] = useState(true);
+  useEffect(() => {
+    const f = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); onCancel(); } };
+    document.addEventListener('keydown', f, true);
+    return () => document.removeEventListener('keydown', f, true);
+  }, [onCancel]);
+  return (
+    <div className="overlay confirm" onClick={onCancel}>
+      <div className="clay modal small" role="alertdialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+        <p>{text}</p>
+        {revokeLabel && (
+          <label className="check"><input type="checkbox" checked={revoke} onChange={(e) => setRevoke(e.target.checked)} /> <span>{revokeLabel}</span></label>
+        )}
+        <div className="row wrap" style={{ marginTop: 14 }}>
+          <button type="button" className="btn danger" disabled={busy} onClick={() => onConfirm(revoke)}><Icon n="trash" size={16} /> {busy ? '...' : 'حذف'}</button>
+          <button type="button" className="btn ghost" onClick={onCancel}>انصراف</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** یک کارت گزارش (مشترک بین تب «گزارش‌ها» و گزارش‌های یک عضو) */
+function ReportCard({ r, me, busy, selected, onSelect, onMark, onDelete, onChange, showUser = true }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={'clay pad rep' + (selected ? ' picked' : '')}>
+      <div className="row between wrap">
+        <div className="row">
+          {onSelect && <input type="checkbox" className="pick" aria-label="انتخاب گزارش" checked={!!selected} onChange={() => onSelect(r.id)} />}
+          {showUser && <><Avatar name={r.user_name} size={38} /><b>{r.user_name}</b></>}
+        </div>
+        <small className="muted">{fmt(r.created_at)}</small>
+      </div>
+      <p>{r.content}</p>
+      <div className="row wrap">
+        <span className={'chip ' + r.status}>{r.status === 'reviewed' ? 'بررسی شد' : 'در انتظار'}{r.xp_awarded ? ` · +${nf(r.xp_awarded)} XP` : ''}</span>
+        <button type="button" className="btn small ghost" aria-expanded={open} onClick={() => setOpen(!open)}>پاسخ / گفتگو</button>
+        {r.status === 'pending' && onMark && <button type="button" className="btn small" disabled={busy} onClick={() => onMark(r)}><Icon n="check" size={16} /> بررسی شد</button>}
+        <button type="button" className="btn small danger" disabled={busy} onClick={() => onDelete(r)} aria-label="حذف گزارش"><Icon n="trash" size={16} /> حذف</button>
+      </div>
+      {open && <Thread report={{ id: r.id, user_id: r.user_id, status: r.status }} me={me} onSent={onChange} />}
+    </div>
+  );
+}
+
+/** گزارش‌های یک عضو (داخل ویرایشگر عضو) */
+function MemberReports({ me, m, onChange, onDeleteAll }) {
+  const [run, busy] = useAction();
+  const [ask, setAsk] = useState(null);
+  const paged = usePaged((offset, limit) => api.adminReports(me.id, 'all', offset, limit, { user: m.id }), [m.id, me.id], 10);
+  const del = async (revoke) => {
+    if (await run(() => api.deleteReports(me.id, [ask.id], revoke), { ok: 'گزارش حذف شد' })) { setAsk(null); paged.reload(); onChange(); }
+  };
+  return (
+    <div className="clay-in">
+      <div className="row between wrap"><h3>گزارش‌های {m.name}</h3>
+        {paged.items.length > 0 && <button type="button" className="btn small danger" onClick={onDeleteAll} disabled={busy}><Icon n="trash" size={16} /> حذف همه</button>}
+      </div>
+      {paged.items.length === 0 && paged.loading && <div className="skeleton" />}
+      {paged.items.length === 0 && !paged.loading && !paged.error && <Empty icon="file" text="گزارشی وجود ندارد." />}
+      {paged.items.map((r) => <ReportCard key={r.id} r={r} me={me} busy={busy} showUser={false} onDelete={setAsk} onChange={() => { paged.reload(); onChange(); }} />)}
+      <LoadMore paged={paged} />
+      {ask && <ConfirmDelete title="حذف گزارش" text="این گزارش حذف می‌شود." revokeLabel={ask.xp_awarded ? `${nf(ask.xp_awarded)} XP و فعالیت این گزارش هم کم شود` : null} onCancel={() => setAsk(null)} onConfirm={del} busy={busy} />}
+    </div>
+  );
+}
 
 function XpLog({ userId, xp }) {
   const { data, error, reload } = useQuery(`xph:${userId}:${xp}`, () => api.xpHistory(userId, 15), { stale: 10000 });
@@ -34,6 +120,7 @@ function MemberEditor({ me, m, reload, onGone }) {
   const [acts, setActs] = useState(null);
   const [skills, setSkills] = useState([]);
   const [run, busy] = useAction();
+  const [ask, setAsk] = useState(null); // 'user' | 'reports'
   const sk = useQuery(`admin-skills:${m.id}`, () => api.growth(m.id), { stale: 0 });
   const days = sk.data?.today ? last7(sk.data.today) : [];
 
@@ -89,12 +176,16 @@ function MemberEditor({ me, m, reload, onGone }) {
     if (await run(() => api.setActive(me.id, m.id, to), { ok: to ? 'حساب فعال شد' : 'حساب غیرفعال شد' })) { invalidate(''); reload(); }
   };
   const remove = async () => {
-    if (!window.confirm(`«${m.name}» برای همیشه حذف می‌شود، همراه با گزارش‌ها و مهارت‌هایش. این کار برگشت‌پذیر نیست. ادامه می‌دهید؟`)) return;
-    if (await run(() => api.deleteUser(me.id, m.id), { ok: 'عضو حذف شد' })) { invalidate(''); onGone(); }
+    if (await run(() => api.deleteUser(me.id, m.id), { ok: 'عضو حذف شد' })) { setAsk(null); invalidate(''); onGone(); }
+  };
+  const removeReports = async (revoke) => {
+    const out = await run(() => api.deleteUserReports(me.id, m.id, revoke), { ok: (r) => `${nf(r?.deleted || 0)} گزارش حذف شد` });
+    if (out) { setAsk(null); invalidate(''); after(); }
   };
 
+  const canDelete = m.id !== me.id && (me.role === 'super' || (me.role === 'admin' && m.role === 'member'));
   const canDanger = m.role !== 'super' && m.id !== me.id;
-  const tabs = [['xp', 'XP و مهارت‌ها'], ['act', 'فعالیت هفتگی'], ['msg', 'پیام'], ['view', 'پیش‌نمایش پنل'], ...(canDanger ? [['danger', 'مدیریت حساب']] : [])];
+  const tabs = [['xp', 'XP و مهارت‌ها'], ['act', 'فعالیت هفتگی'], ['msg', 'پیام'], ['reps', 'گزارش‌ها'], ['view', 'پیش‌نمایش پنل'], ...(canDanger ? [['danger', 'مدیریت حساب']] : [])];
 
   return (
     <div className="clay pad">
@@ -102,6 +193,11 @@ function MemberEditor({ me, m, reload, onGone }) {
         <div><h2>{m.name} <RoleBadge role={m.role} />{!m.active && <span className="badge inactive">غیرفعال</span>}</h2>
           <p className="muted">{[m.field, m.city, m.age ? `${nf(m.age)} ساله` : '', m.phone].filter(Boolean).join(' · ')}</p>
           <span className="chip">لول {nf(level(m.xp))} · {nf(m.xp)} XP</span></div></div>
+      {canDelete && (
+        <div className="row wrap" style={{ marginTop: 10 }}>
+          <button type="button" className="btn small danger" onClick={() => setAsk('user')} disabled={busy}><Icon n="trash" size={16} /> حذف عضو</button>
+        </div>
+      )}
       <div className="seg" role="tablist" aria-label="بخش‌های ویرایش عضو" style={{ margin: '14px 0' }}>
         {tabs.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
       </div>
@@ -117,14 +213,14 @@ function MemberEditor({ me, m, reload, onGone }) {
           <div className="clay-in"><h3>مهارت‌ها</h3>
             {skills.length === 0 && <small className="muted">مهارتی ثبت نشده.</small>}
             {skills.map((s) => (
-              <div className="row" key={s.id}>
+              <div className="row skillrow" key={s.id}>
                 <input aria-label="نام مهارت" maxLength={60} value={s.name} onChange={(e) => editSkill(s.id, 'name', e.target.value)} />
                 <input aria-label="XP مهارت" type="number" min="0" value={s.xp} onChange={(e) => editSkill(s.id, 'xp', e.target.value)} style={{ maxWidth: 110 }} />
                 <button type="button" className="btn small" onClick={() => saveSkill(s)} disabled={busy} aria-label="ذخیره مهارت"><Icon n="check" size={16} /></button>
                 <button type="button" className="btn small danger" onClick={() => delSkill(s)} disabled={busy} aria-label="حذف مهارت"><Icon n="trash" size={16} /></button>
               </div>
             ))}
-            <div className="row"><input aria-label="مهارت جدید" maxLength={60} placeholder="مهارت جدید..." value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addSkill()} /><button type="button" className="btn small" onClick={addSkill} disabled={busy}><Icon n="plus" size={16} /> افزودن</button></div>
+            <div className="row skillnew"><input aria-label="مهارت جدید" maxLength={60} placeholder="مهارت جدید..." value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addSkill()} /><button type="button" className="btn small" onClick={addSkill} disabled={busy}><Icon n="plus" size={16} /> افزودن</button></div>
           </div>
         </>
       )}
@@ -144,20 +240,23 @@ function MemberEditor({ me, m, reload, onGone }) {
           <textarea rows="4" maxLength={MAX_MSG_CHARS} aria-label="متن پیام" value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="متن پیام..." />
           <button type="button" className="btn small" onClick={sendMsg} disabled={busy || !msg.trim()}><Icon n="send" size={16} /> ارسال پیام</button></div>
       )}
+      {tab === 'reps' && <MemberReports me={me} m={m} onChange={() => { invalidate(''); after(); }} onDeleteAll={() => setAsk('reports')} />}
       {tab === 'view' && <Growth user={m} />}
       {tab === 'danger' && (
         <div className="clay-in">
           <h3>مدیریت حساب</h3>
           <p className="muted">غیرفعال‌کردن، حساب را از رتبه‌بندی و ورود حذف می‌کند ولی اطلاعات می‌ماند و قابل بازگشت است.</p>
           <button type="button" className="btn small" onClick={toggleActive} disabled={busy}>{m.active ? 'غیرفعال‌کردن حساب' : 'فعال‌کردن حساب'}</button>
-          {me.role === 'super' && (
+          {canDelete && (
             <>
               <p className="muted" style={{ marginTop: 16 }}>حذف دائمی (مثلاً حساب تست یا اسپم) همه‌ی اطلاعات این عضو را پاک می‌کند.</p>
-              <button type="button" className="btn small danger" onClick={remove} disabled={busy}><Icon n="trash" size={16} /> حذف دائمی عضو</button>
+              <button type="button" className="btn small danger" onClick={() => setAsk('user')} disabled={busy}><Icon n="trash" size={16} /> حذف دائمی عضو</button>
             </>
           )}
         </div>
       )}
+      {ask === 'user' && <ConfirmDelete title={`حذف «${m.name}»`} text="این عضو برای همیشه حذف می‌شود، همراه با گزارش‌ها، مهارت‌ها و پیام‌هایش. این کار برگشت‌پذیر نیست." onCancel={() => setAsk(null)} onConfirm={remove} busy={busy} />}
+      {ask === 'reports' && <ConfirmDelete title={`حذف همه‌ی گزارش‌های «${m.name}»`} text="همه‌ی گزارش‌های این عضو حذف می‌شود." revokeLabel="XP و فعالیتی که این گزارش‌ها داده‌اند هم کم شود" onCancel={() => setAsk(null)} onConfirm={removeReports} busy={busy} />}
     </div>
   );
 }
@@ -165,31 +264,45 @@ function MemberEditor({ me, m, reload, onGone }) {
 /* ---------- گزارش‌ها ---------- */
 function ReportsTab({ me, onChange }) {
   const [filter, setFilter] = useState('pending');
-  const [open, setOpen] = useState(null);
+  const [q, setQ] = useState('');
+  const dq = useDebounced(q, 300);
+  const [sel, setSel] = useState(() => new Set());
+  const [ask, setAsk] = useState(null); // { ids, xp }
   const [run, busy] = useAction();
-  const paged = usePaged((offset, limit) => api.adminReports(me.id, filter, offset, limit), [filter, me.id], 20);
+  const paged = usePaged((offset, limit) => api.adminReports(me.id, filter, offset, limit, { q: dq }), [filter, dq, me.id], 20);
+  useEffect(() => { setSel(new Set()); }, [filter, dq]);
   const mark = async (r) => { if (await run(() => api.markReviewed(me.id, r.id), { ok: 'علامت‌گذاری شد' })) { paged.reload(); onChange(); } };
+  const toggle = (id) => setSel((x) => { const n = new Set(x); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const allOn = paged.items.length > 0 && paged.items.every((r) => sel.has(r.id));
+  const toggleAll = () => setSel(allOn ? new Set() : new Set(paged.items.map((r) => r.id)));
+  const xpOf = (ids) => paged.items.filter((r) => ids.includes(r.id)).reduce((t, r) => t + (r.xp_awarded || 0), 0);
+  const askDelete = (ids) => setAsk({ ids, xp: xpOf(ids) });
+  const del = async (revoke) => {
+    const out = await run(() => api.deleteReports(me.id, ask.ids, revoke), { ok: (r) => `${nf(r?.deleted || 0)} گزارش حذف شد` });
+    if (out) { setAsk(null); setSel(new Set()); invalidate(''); paged.reload(); onChange(); }
+  };
   return (
     <div>
-      <div className="seg" style={{ maxWidth: 320 }}>
-        <button type="button" aria-pressed={filter === 'pending'} className={filter === 'pending' ? 'on' : ''} onClick={() => setFilter('pending')}>بررسی‌نشده</button>
-        <button type="button" aria-pressed={filter === 'all'} className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>همه</button>
-      </div>
-      {paged.items.length === 0 && paged.loading && <div className="skeleton" />}
-      {paged.items.length === 0 && !paged.loading && !paged.error && <Empty icon="check" text={filter === 'pending' ? 'همه گزارش‌ها بررسی شده‌اند.' : 'گزارشی وجود ندارد.'} />}
-      {paged.items.map((r) => (
-        <div key={r.id} className="clay pad rep">
-          <div className="row between"><div className="row"><Avatar name={r.user_name} size={38} /><b>{r.user_name}</b></div><small className="muted">{fmt(r.created_at)}</small></div>
-          <p>{r.content}</p>
-          <div className="row wrap">
-            <span className={'chip ' + r.status}>{r.status === 'reviewed' ? 'بررسی شد' : 'در انتظار'}{r.xp_awarded ? ` · +${nf(r.xp_awarded)} XP` : ''}</span>
-            <button type="button" className="btn small ghost" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}>پاسخ / گفتگو</button>
-            {r.status === 'pending' && <button type="button" className="btn small" disabled={busy} onClick={() => mark(r)}><Icon n="check" size={16} /> بررسی شد</button>}
-          </div>
-          {open === r.id && <Thread report={{ id: r.id, user_id: r.user_id, status: r.status }} me={me} onSent={() => { paged.reload(); onChange(); }} />}
+      <div className="toolbar">
+        <div className="seg" role="group" aria-label="فیلتر وضعیت">
+          <button type="button" aria-pressed={filter === 'pending'} className={filter === 'pending' ? 'on' : ''} onClick={() => setFilter('pending')}>بررسی‌نشده</button>
+          <button type="button" aria-pressed={filter === 'all'} className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>همه</button>
         </div>
+        <div className="searchbox"><Icon n="search" size={18} /><input aria-label="جستجو در گزارش‌ها" placeholder="جستجوی نام عضو یا متن گزارش..." value={q} onChange={(e) => setQ(e.target.value)} /></div>
+      </div>
+      {paged.items.length > 0 && (
+        <div className="row wrap bulkbar">
+          <label className="check"><input type="checkbox" checked={allOn} onChange={toggleAll} /> <span>انتخاب همه</span></label>
+          {sel.size > 0 && <button type="button" className="btn small danger" disabled={busy} onClick={() => askDelete([...sel])}><Icon n="trash" size={16} /> حذف {nf(sel.size)} گزارش انتخاب‌شده</button>}
+        </div>
+      )}
+      {paged.items.length === 0 && paged.loading && <div className="skeleton" />}
+      {paged.items.length === 0 && !paged.loading && !paged.error && <Empty icon="check" text={dq ? 'گزارشی پیدا نشد.' : filter === 'pending' ? 'همه گزارش‌ها بررسی شده‌اند.' : 'گزارشی وجود ندارد.'} />}
+      {paged.items.map((r) => (
+        <ReportCard key={r.id} r={r} me={me} busy={busy} selected={sel.has(r.id)} onSelect={toggle} onMark={mark} onDelete={(x) => askDelete([x.id])} onChange={() => { paged.reload(); onChange(); }} />
       ))}
       <LoadMore paged={paged} />
+      {ask && <ConfirmDelete title={ask.ids.length > 1 ? `حذف ${nf(ask.ids.length)} گزارش` : 'حذف گزارش'} text="گزارش‌های انتخاب‌شده برای همیشه حذف می‌شوند." revokeLabel={ask.xp ? `${nf(ask.xp)} XP و فعالیت این گزارش‌ها هم کم شود` : null} onCancel={() => setAsk(null)} onConfirm={del} busy={busy} />}
     </div>
   );
 }
@@ -212,13 +325,13 @@ function TeamTab({ me }) {
       <h3>نقش‌ها و سرپرستی</h3>
       <p className="muted">نقش هر عضو و ادمین سرپرست او را مشخص کنید.</p>
       <div className="searchbox"><Icon n="search" size={18} /><input aria-label="جستجوی عضو" placeholder="جستجو..." value={q} onChange={(e) => setQ(e.target.value)} /></div>
-      <div className="tablewrap"><table>
+      <div className="tablewrap"><table className="stack">
         <thead><tr><th scope="col">نام</th><th scope="col">حوزه</th><th scope="col">نقش</th><th scope="col">سرپرست</th></tr></thead>
         <tbody>{rows.map((m) => (
           <tr key={m.id}>
-            <td><b>{m.name}</b>{!m.active && <span className="badge inactive">غیرفعال</span>}</td><td>{m.field || '—'}</td>
-            <td>{m.role === 'super' ? <RoleBadge role="super" /> : <select aria-label={`نقش ${m.name}`} disabled={busy} value={m.role} onChange={(e) => upd(m.id, { role: e.target.value })}><option value="member">عضو</option><option value="admin">ادمین</option></select>}</td>
-            <td><select aria-label={`سرپرست ${m.name}`} disabled={busy} value={m.supervisor_id || ''} onChange={(e) => upd(m.id, { supervisor_id: e.target.value || null })}>
+            <td data-label="نام"><b>{m.name}</b>{!m.active && <span className="badge inactive">غیرفعال</span>}</td><td data-label="حوزه">{m.field || '—'}</td>
+            <td data-label="نقش"><select aria-label={`نقش ${m.name}`} disabled={busy} value={m.role} onChange={(e) => upd(m.id, { role: e.target.value })}><option value="member">عضو</option><option value="admin">ادمین</option><option value="super">سوپر ادمین</option></select></td>
+            <td data-label="سرپرست"><select aria-label={`سرپرست ${m.name}`} disabled={busy} value={m.supervisor_id || ''} onChange={(e) => upd(m.id, { supervisor_id: e.target.value || null })}>
               <option value="">بدون سرپرست</option>
               {(admins || []).filter((a) => a.id !== m.id).map((a) => <option key={a.id} value={a.id}>{a.name} ({roleName[a.role]})</option>)}
             </select></td>
@@ -285,6 +398,7 @@ export default function Admin({ me, sub, onSub, onChange }) {
   const [sel, setSel] = useState(null);
   const dq = useDebounced(q, 300);
   const tab = ['members', 'reports', 'team', 'fields'].includes(sub) ? sub : 'members';
+  const narrow = useNarrow(860);
   const counts = useQuery(`admin-counts:${me.id}`, () => api.adminCounts(me.id), { stale: 15000 });
   const paged = usePaged((offset, limit) => api.adminMembers(me, { q: dq, offset, limit }), [dq, me.id], 30);
   const c = counts.data || { members: 0, pending: 0, today: 0, xp: 0 };
@@ -317,13 +431,18 @@ export default function Admin({ me, sub, onSub, onChange }) {
             {paged.items.length === 0 && paged.loading && <div className="skeleton" />}
             {paged.items.map((m) => (
               <div key={m.id} className={'clay mini ' + (sel === m.id ? 'active' : '') + (m.active ? '' : ' off')} aria-pressed={sel === m.id}
-                {...clickable(() => { setSel(m.id); setTimeout(() => document.getElementById('editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); })}>
+                {...clickable(() => { setSel(m.id); if (!narrow) setTimeout(() => document.getElementById('editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); })}>
                 <Avatar name={m.name} size={40} /><div className="grow"><b>{m.name}</b><br /><small className="muted">{roleName[m.role]} · لول {nf(level(m.xp))}{m.active ? '' : ' · غیرفعال'}</small></div>
               </div>
             ))}
             <LoadMore paged={paged} />
           </div>
-          <div id="editor">{current ? <MemberEditor key={current.id} me={me} m={current} reload={reloadAll} onGone={() => { setSel(null); reloadAll(); }} /> : <Empty icon="user" text="یک عضو را از لیست انتخاب کنید." />}</div>
+          {!narrow && <div id="editor">{current ? <MemberEditor key={current.id} me={me} m={current} reload={reloadAll} onGone={() => { setSel(null); reloadAll(); }} /> : <Empty icon="user" text="یک عضو را از لیست انتخاب کنید." />}</div>}
+          {narrow && current && (
+            <Modal onClose={() => setSel(null)} label="ویرایش عضو">
+              <MemberEditor key={current.id} me={me} m={current} reload={reloadAll} onGone={() => { setSel(null); reloadAll(); }} />
+            </Modal>
+          )}
         </div>
       )}
       {tab === 'reports' && <ReportsTab me={me} onChange={reloadAll} />}

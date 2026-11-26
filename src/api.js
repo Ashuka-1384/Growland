@@ -4,7 +4,7 @@
  * پس هیچ خطایی بی‌صدا نادیده گرفته نمی‌شود.
  */
 import { sb, PUBLIC_COLS, SELF_COLS } from './db.js';
-import { escLike, normFa, fixFa, fa2en, tierXpRange } from './rules.js';
+import { normFa, fixFa, fa2en, tierXpRange, escLike } from './rules.js';
 
 /* ---------- خطا ---------- */
 const MESSAGES = {
@@ -22,6 +22,7 @@ const MESSAGES = {
   '23503': 'این مورد به اطلاعات دیگری وابسته است',
   '23514': 'مقدار واردشده مجاز نیست',
   '22P02': 'مقدار واردشده معتبر نیست',
+  PGRST202: 'دیتابیس به‌روز نیست؛ فایل supabase.sql را در Supabase اجرا کنید',
 };
 const NETWORK_RE = /failed to fetch|networkerror|network request|load failed|fetch|timeout|abort|offline/i;
 
@@ -47,7 +48,9 @@ export function toApiError(err) {
     return new ApiError('ارتباط با سرور برقرار نشد. اینترنت خود را بررسی کنید و دوباره تلاش کنید.', { network: true, code: 'network', cause: err });
   }
   if (MESSAGES[code]) return new ApiError(MESSAGES[code], { code, cause: err });
-  return new ApiError('خطای غیرمنتظره‌ای رخ داد. لطفاً دوباره تلاش کنید.', { code: code || 'unknown', cause: err });
+  // کد/متن خطا هم نشان داده می‌شود تا ریشه‌یابی ساده باشد
+  const detail = [code, msg].filter(Boolean).join(': ').slice(0, 140);
+  return new ApiError(`خطای غیرمنتظره‌ای رخ داد${detail ? ` (${detail})` : ''}`, { code: code || 'unknown', cause: err });
 }
 
 /** اجرای یک query/rpc: خطا را به ApiError تبدیل می‌کند و {data,count} برمی‌گرداند */
@@ -76,6 +79,18 @@ export async function fetchSelf(id) {
   const { data } = await run(sb.from('profiles').select(SELF_COLS).eq('id', id).maybeSingle());
   return data;
 }
+
+/** بوت اپ در یک درخواست: پروفایل + رتبه + نشانگرها. اگر دیتابیس هنوز به‌روز نشده باشد به روش قدیمی برمی‌گردد */
+export async function boot(id) {
+  try {
+    const d = await rpc('app_boot', { p_user: id });
+    return d ? { user: d.self, rank: d.rank ?? null, badges: d.badges || null } : { user: null, rank: null, badges: null };
+  } catch (e) {
+    if (e?.code !== 'PGRST202') throw e;
+    return { user: await fetchSelf(id), rank: null, badges: null };
+  }
+}
+export const badges = (id) => rpc('app_badges', { p_user: id });
 
 export async function register(f) {
   const { data } = await run(
@@ -111,10 +126,7 @@ export async function xpHistory(id, limit = 15) {
   return data || [];
 }
 
-export async function memberById(id) {
-  const { data } = await run(sb.from('leaderboard').select(PUBLIC_COLS).eq('id', id).maybeSingle());
-  return data;
-}
+export const memberById = (id) => rpc('member_public', { p_id: id });
 
 export async function myRank(id) {
   const m = await memberById(id);
@@ -123,36 +135,14 @@ export async function myRank(id) {
 
 export const communityStats = () => rpc('community_stats');
 
-/* ---------- اعضا (صفحه‌بندی سمت سرور) ---------- */
-const SORTS = {
-  xp: [['rank', true]],
-  name: [['name', true], ['id', true]],
-  new: [['created_at', false], ['id', true]],
-};
-
+/* ---------- اعضا (صفحه‌بندی سمت سرور؛ مهارت‌های برتر داخل همان پاسخ) ---------- */
 export async function membersPage({ q = '', field = '', tier = '', sort = 'xp', offset = 0, limit = 24 }) {
-  let qb = sb.from('leaderboard').select(PUBLIC_COLS, { count: 'exact' });
-  const nq = normFa(q);
-  if (nq) qb = qb.ilike('search_norm', `%${escLike(nq)}%`);
-  if (field) qb = qb.eq('field', field);
   const range = tier ? tierXpRange(tier) : null;
-  if (range) {
-    qb = qb.gte('xp', range.lo);
-    if (range.hi !== null) qb = qb.lt('xp', range.hi);
-  }
-  for (const [col, asc] of SORTS[sort] || SORTS.xp) qb = qb.order(col, { ascending: asc });
-  const { data, count } = await run(qb.range(offset, offset + limit - 1));
-  return { rows: data || [], total: count };
-}
-
-/** مهارت‌های برتر برای تعدادی محدود از کارت‌ها (لیست کوتاه، بدون خطر طول URL) */
-export async function topSkills(ids) {
-  if (!ids.length) return {};
-  const { data } = await run(sb.from('skills_top3').select('id,user_id,name,xp').in('user_id', ids));
-  const g = {};
-  for (const s of data || []) (g[s.user_id] ||= []).push(s);
-  for (const k of Object.keys(g)) g[k].sort((a, b) => b.xp - a.xp);
-  return g;
+  const d = await rpc('members_page', {
+    p_q: normFa(q), p_field: field || '', p_lo: range ? range.lo : null, p_hi: range ? range.hi : null,
+    p_sort: sort, p_limit: limit, p_offset: offset,
+  });
+  return { rows: d?.rows || [], total: d?.total ?? null };
 }
 
 export const leaderboardPeriod = (days, limit = 20) => rpc('leaderboard_period', { p_days: days, p_limit: limit });
@@ -198,15 +188,17 @@ export const markMsgsRead = (userId) => rpc('mark_msgs_read', { p_user: userId }
 /* ---------- مدیریت ---------- */
 export const adminCounts = (adminId) => rpc('admin_counts', { p_admin: adminId });
 
-export async function adminReports(adminId, status, offset = 0, limit = 20) {
-  const rows = await rpc('admin_reports', { p_admin: adminId, p_status: status, p_limit: limit, p_offset: offset });
+export async function adminReports(adminId, status, offset = 0, limit = 20, { q = '', user = null } = {}) {
+  const rows = await rpc('admin_reports', { p_admin: adminId, p_status: status, p_limit: limit, p_offset: offset, p_q: q || '', p_user: user });
   return { rows: rows || [], total: null };
 }
+export const deleteReports = (adminId, ids, revoke = true) => rpc('admin_delete_reports', { p_admin: adminId, p_ids: ids, p_revoke: revoke });
+export const deleteUserReports = (adminId, userId, revoke = true) => rpc('admin_delete_user_reports', { p_admin: adminId, p_user: userId, p_revoke: revoke });
 export const markReviewed = (adminId, reportId) => rpc('admin_mark_reviewed', { p_admin: adminId, p_report: reportId });
 
 const ADMIN_COLS = 'id,name,age,city,field,role,xp,supervisor_id,phone,active,created_at';
 export async function adminMembers(me, { q = '', offset = 0, limit = 30 }) {
-  let qb = sb.from('profiles').select(ADMIN_COLS, { count: 'exact' });
+  let qb = sb.from('profiles').select(ADMIN_COLS, offset === 0 ? { count: 'exact' } : undefined);
   if (me.role !== 'super') qb = qb.eq('supervisor_id', me.id);
   const nq = normFa(q);
   if (nq) qb = qb.ilike('search_norm', `%${escLike(nq)}%`);
@@ -244,16 +236,3 @@ export async function fieldUsage(name) {
 export const pushSave = (userId, sub) =>
   rpc('push_save', { p_user: userId, p_endpoint: sub.endpoint, p_p256dh: sub.keys?.p256dh, p_auth: sub.keys?.auth });
 export const pushRemove = (endpoint) => rpc('push_remove', { p_endpoint: endpoint });
-
-/* ---------- Realtime (اختیاری؛ اگر در دسترس نباشد polling کافی است) ---------- */
-export function subscribe(name, table, filter, onEvent) {
-  try {
-    const cfg = { event: 'INSERT', schema: 'public', table };
-    if (filter) cfg.filter = filter;
-    const ch = sb.channel(name).on('postgres_changes', cfg, onEvent).subscribe();
-    return () => { try { sb.removeChannel(ch); } catch { /* ignore */ } };
-  } catch {
-    return () => {};
-  }
-}
-

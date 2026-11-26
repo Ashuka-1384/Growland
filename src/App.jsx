@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { configured, store, syncClock, nf, level, tierOf, isCeleb } from './db.js';
 import * as api from './api.js';
-import { clearCache, invalidate, useLive } from './hooks.js';
+import { clearCache, invalidate, prefetch, seed, useLive } from './hooks.js';
 import { NotifyProvider, useNotify } from './notify.jsx';
 import { closeModalRoute, useRoute } from './router.js';
 import Auth from './Auth.jsx';
@@ -31,9 +31,16 @@ const readSelf = (uid) => {
 const Fallback = () => <div className="auth"><Spinner /></div>;
 
 /** نشست کاربر: خطای شبکه هرگز باعث خروج نمی‌شود؛ فقط «کاربر واقعاً وجود ندارد/غیرفعال است» خروج می‌زند */
-function useSession() {
+function useSession(onBoot) {
   const { toast } = useNotify();
-  const [s, setS] = useState({ status: configured ? 'loading' : 'out', user: null, error: null });
+  // پروفایل ذخیره‌شده فوراً نمایش داده می‌شود (بدون اسپینر)؛ نسخه‌ی تازه پشت صحنه می‌آید
+  const [s, setS] = useState(() => {
+    if (!configured) return { status: 'out', user: null, error: null };
+    const cached = readSelf(store.get('gl_uid'));
+    return cached ? { status: 'in', user: cached, error: null } : { status: store.get('gl_uid') ? 'loading' : 'out', user: null, error: null };
+  });
+  const bootRef = useRef(onBoot);
+  bootRef.current = onBoot;
   const seq = useRef(0);
   const userRef = useRef(null);
   const lastFetch = useRef(0);
@@ -46,9 +53,12 @@ function useSession() {
     if (!uid) { setS({ status: 'out', user: null, error: null }); return; }
     lastFetch.current = Date.now();
     try {
-      const u = await api.fetchSelf(uid);
+      const b = await api.boot(uid);
+      const u = b.user;
       if (my !== seq.current) return;
       if (u && u.active !== false) {
+        if (b.rank != null) seed(`rank:${u.id}:${u.xp}`, b.rank);
+        if (b.badges) bootRef.current?.(b.badges);
         store.set('gl_uid', u.id);
         store.set('gl_self', JSON.stringify(u));
         setS({ status: 'in', user: u, error: null });
@@ -63,7 +73,7 @@ function useSession() {
       const err = api.toApiError(e);
       if (userRef.current) {
         // کاربر وارد است: نشست حفظ می‌شود و فقط یک اعلان (حداکثر دقیقه‌ای یک‌بار) نشان می‌دهیم
-        if (Date.now() - lastToast.current > 60000) { lastToast.current = Date.now(); toast(err.message, 'err'); }
+        if (!(err.network && navigator.onLine === false) && Date.now() - lastToast.current > 60000) { lastToast.current = Date.now(); toast(err.message, 'err'); }
       } else {
         const cached = err.network ? readSelf(uid) : null;
         setS(cached ? { status: 'in', user: cached, error: null } : { status: 'error', user: null, error: err });
@@ -101,10 +111,16 @@ function useSession() {
 }
 
 function Shell() {
-  const { status, user, error, load, logout } = useSession();
+  const [badges, setBadges] = useState({ msgs: 0, threads: 0, admin: 0 });
+  const lastBadges = useRef(0);
+  const applyBadges = useCallback((b) => {
+    lastBadges.current = Date.now();
+    setBadges({ msgs: b?.msgs || 0, threads: b?.threads || 0, admin: b?.pending || 0 });
+    setBadge((b?.msgs || 0) + (b?.threads || 0) + (b?.pending || 0)); // عدد روی آیکون اپ
+  }, []);
+  const { status, user, error, load, logout } = useSession(applyBadges);
   const { toast, celebrate } = useNotify();
   const [route, go] = useRoute();
-  const [badges, setBadges] = useState({ msgs: 0, threads: 0, admin: 0 });
   const mainRef = useRef(null);
   const first = useRef(true);
 
@@ -113,17 +129,24 @@ function Shell() {
   const refreshBadges = useCallback(async () => {
     if (!uid) return;
     try {
-      const [u, c] = await Promise.all([api.unread(uid), role !== 'member' ? api.adminCounts(uid) : null]);
-      setBadges({ msgs: u?.msgs || 0, threads: u?.threads || 0, admin: c?.pending || 0 });
-      setBadge((u?.msgs || 0) + (u?.threads || 0) + (c?.pending || 0)); // عدد روی آیکون اپ
+      applyBadges(await api.badges(uid)); // یک درخواست (قبلاً دو درخواست)
     } catch { /* نشانگرها پس‌زمینه‌اند؛ خطا نمایش داده نمی‌شود و polling بعدی دوباره تلاش می‌کند */ }
-  }, [uid, role]);
+  }, [uid, applyBadges]);
 
-  useEffect(() => { refreshBadges(); }, [refreshBadges, route[0]]);
-  useLive({
-    enabled: !!uid, every: 60000, onTick: refreshBadges,
-    channels: uid ? [[`admin-msgs-${uid}`, 'admin_messages', `user_id=eq.${uid}`], [`report-msgs-${uid}`, 'report_messages', null]] : [],
-  });
+  // با تغییر تب فقط اگر نشانگرها کهنه‌اند (بیش از ۲۰ ثانیه) دوباره گرفته می‌شوند
+  useEffect(() => { if (Date.now() - lastBadges.current > 20000) refreshBadges(); }, [refreshBadges, route[0]]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLive({ enabled: !!uid, every: 60000, onTick: refreshBadges });
+
+  // پیش‌بارگذاری صفحات پرمصرف در زمان بیکاری: باز شدن تب «اعضا» فوری می‌شود
+  useEffect(() => {
+    if (status !== 'in') return undefined;
+    const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1500));
+    const h = idle(() => {
+      prefetch('fields', api.listFields, 60000);
+      prefetch('stats', api.communityStats, 60000);
+    });
+    return () => { try { (window.cancelIdleCallback || clearTimeout)(h); } catch { /* ignore */ } };
+  }, [status]);
 
   const navHidden = useNavHidden(status === 'in');
   const [rev, setRev] = useState(0);
@@ -250,9 +273,6 @@ function Shell() {
               <Icon n={ic} /><span>{TITLES[k]}</span>{badge(k) > 0 && <i className="dot" aria-label={`${nf(badge(k))} مورد جدید`}>{nf(badge(k))}</i>}
             </button>
           ))}
-          <button type="button" className="navbtn" onClick={() => { window.location.href = 'https://growlandarchive.vercel.app/'; }}>
-            <Icon n="grid" /><span>آرشیو گرولند</span>
-          </button>
         </nav>
         <div className="row between" style={{ marginBottom: 10 }}><small className="muted">پوسته نمایش</small><ThemeToggle /></div>
         <div style={{ marginBottom: 10 }}><InstallButton className="btn small" /></div>

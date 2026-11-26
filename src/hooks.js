@@ -1,13 +1,54 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { toApiError, subscribe } from './api.js';
+import { toApiError } from './api.js';
+import { store } from './db.js';
 import { useNotify } from './notify.jsx';
 
-/* ---------- کش سبک (stale-while-revalidate) ---------- */
+/* ---------- کش سبک (stale-while-revalidate) + ذخیره‌ی پایدار ---------- */
 const cache = new Map();
+const inflight = new Map(); // درخواست‌های هم‌زمانِ هم‌کلید فقط یک بار به سرور می‌روند
+
+// فقط داده‌های کم‌حجم و بی‌خطر ذخیره می‌شوند؛ با باز شدن دوباره‌ی اپ، صفحه فوراً با داده‌ی قبلی پر می‌شود
+const PERSIST = /^(growth:|rank:|lastmsg:|fields$|stats$|period:|members:|landing:|member:)/;
+const QC_KEY = 'gl_qc';
+const QC_MAX = 250000;
+try {
+  const saved = JSON.parse(store.get(QC_KEY) || '{}');
+  for (const [k, data] of Object.entries(saved)) cache.set(k, { data, ts: 0 });
+} catch { /* ignore */ }
+let saveTimer;
+const persistSoon = () => {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      const o = {};
+      for (const [k, v] of cache) if (PERSIST.test(k) && v.data != null) o[k] = v.data;
+      const txt = JSON.stringify(o);
+      if (txt.length < QC_MAX) store.set(QC_KEY, txt);
+    } catch { /* ignore */ }
+  }, 1500);
+};
 export const invalidate = (prefix = '') => {
   for (const [k, v] of cache) if (k.startsWith(prefix)) v.ts = 0;
 };
-export const clearCache = () => cache.clear();
+export const clearCache = () => { cache.clear(); inflight.clear(); store.remove(QC_KEY); };
+/** نوشتن مستقیم داده‌ی تازه در کش (مثلاً نتیجه‌ی بوت اپ) */
+export const seed = (key, data) => { cache.set(key, { data, ts: Date.now() }); persistSoon(); };
+
+function fetchCached(key, fn) {
+  if (inflight.has(key)) return inflight.get(key);
+  const p = Promise.resolve()
+    .then(fn)
+    .then((data) => { cache.set(key, { data, ts: Date.now() }); persistSoon(); return data; })
+    .finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+/** پیش‌بارگذاری بی‌صدا (خطا نادیده گرفته می‌شود) */
+export const prefetch = (key, fn, stale = 30000) => {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.ts < stale) return;
+  fetchCached(key, fn).catch(() => {});
+};
 
 /**
  * useQuery(key, fetcher): داده‌ی کش‌شده را فوراً نشان می‌دهد و در صورت کهنه‌بودن دوباره می‌گیرد.
@@ -31,11 +72,9 @@ export function useQuery(key, fetcher, { stale = 30000, enabled = true } = {}) {
     const hit = cache.get(key);
     setSt((s) => ({ key, data: hit ? hit.data : s.key === key ? s.data : null, error: null, loading: !(hit && Date.now() - hit.ts < stale) }));
     if (hit && Date.now() - hit.ts < stale) return undefined;
-    Promise.resolve()
-      .then(() => fnRef.current())
+    fetchCached(key, () => fnRef.current())
       .then(
         (data) => {
-          cache.set(key, { data, ts: Date.now() });
           if (!dead) setSt({ key, data, error: null, loading: false });
         },
         (e) => { if (!dead) setSt((s) => ({ ...s, error: toApiError(e), loading: false })); },
@@ -122,29 +161,24 @@ export function useDebounced(value, ms = 300) {
   return v;
 }
 
-/** پایش Realtime + polling سبک؛ فقط وقتی تب قابل مشاهده است */
-export function useLive({ enabled = true, every = 60000, channels = [], onTick }) {
+/** پایش دوره‌ای (polling سبک)؛ فقط وقتی تب قابل مشاهده است. Realtime/WebSocket حذف شده تا اتصال‌های ناپایدار اپ را کند نکنند */
+export function useLive({ enabled = true, every = 60000, onTick }) {
   const cb = useRef(onTick);
   cb.current = onTick;
-  const key = JSON.stringify(channels);
   useEffect(() => {
     if (!enabled) return undefined;
-    let timer;
     let debounce;
-    const fire = () => { clearTimeout(debounce); debounce = setTimeout(() => cb.current?.(), 400); };
     const visible = () => document.visibilityState === 'visible';
-    const tick = () => { if (visible()) cb.current?.(); };
+    const fire = () => { clearTimeout(debounce); debounce = setTimeout(() => cb.current?.(), 400); };
+    const timer = setInterval(() => { if (visible()) cb.current?.(); }, every);
     const onVis = () => { if (visible()) fire(); };
-    timer = setInterval(tick, every);
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('online', fire);
-    const unsubs = JSON.parse(key).map(([name, table, filter]) => subscribe(name, table, filter, fire));
     return () => {
       clearInterval(timer);
       clearTimeout(debounce);
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('online', fire);
-      unsubs.forEach((u) => u());
     };
-  }, [enabled, every, key]);
+  }, [enabled, every]);
 }
